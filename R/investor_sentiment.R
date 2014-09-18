@@ -9,121 +9,163 @@
 # 
 # investor_sentiment_and_anomalies.R
 #
-# rm(list=ls())                  # Limpar toda a mem?ria
 
-## SETTINGS ## #################################################################
-# Definindo Par‚metros
+## SETTINGS ## ################################################################
+## Setting Parameters
+## Definindo Parametros
 
-setwd("C:/Dropbox/invSent")    # Select workdir
 START <- as.Date("2001-01-01") # Initial Date
 END   <- as.Date("2013-12-31") # Final Date
 
-## GETTING DATA AND CLEANING ## ################################################
-# Carregar os dados crus e processa-lo
-# Get Data and Clean
+## GETTING DATA AND CLEANING ## ###############################################
+## Get Data and Clean
+## Carregar e limpar dados
 
-# Carregando funÁ„o de ImportaÁ„o da base do Economatica no formato CSV
-source("MyFuns/importaBaseCSV.R")
+# Functions == ================================================================
 
-# Importanto matriz de precos mensais
-mPrices     <- importaBaseCSV("Input/mPrices.csv", START, END,
-                              formato="%d/%m/%Y")
-
-# AMOSTRA INICIAL ==============================================================
-# Importando modelo matriz da populacao (1 para todos os anos que houve cotacao)
-yPopulation <- importaBaseCSV("Input/yPopulation.csv", START, END, formato="%Y")
-
-# Carregando funÁ„o para a criaÁ„o de uma matriz mapa de datas
-#source("MyFuns/createDateIndex.R")
-
-# Criando matriz mapa de datas
-dateIndex <- createDateIndex()
-
-########### Filtro de acoes c/ 24 meses consecutivos de precos
-ySample24m  <- yPopulation
-for ( j in seq_len(ncol(mPrices)) ) {
-        # Fazer essa rotina para coluna j
-        for ( i in seq_len(nrow(mPrices)) ) {
-                # Fazer essa rotina para cada linha i da coluna j
-                # Verificar se a linha i est? entre START+1 e END-1
-                if ( i<=12 ) {
-                        ySample24m[as.numeric(dateIndex$nY[i]),j] <- 0
-                }
-                else if( i>floor(nrow(dateIndex)/12)*12 ) {
-                        # nao faz nada
-                }
-                # Verificar se a linha i corresponde ao mes de junho
-                else if ( as.numeric(dateIndex$M[i])==6 ) {
-                        # Verifica se tem pre√ßo nos 24 meses consecutivos
-                        if (sum(!is.na(mPrices[(i-12):(i+12),j])) != 25) {
-                                # E atribui 0 na matriz de controle da amostra
-                                ySample24m[as.numeric(dateIndex$nY[i]),j] <- 0
-                        }
-                }
-        }
+importaBaseCSV <- function(arquivo, doDia, ateDia,
+                           formato="%d/%m/%Y", pula_linha=0, financeiras=F) {
+    
+    # Function to import Brazilian Data
+    # Funcao para carregar dados Economatica
+    
+    # Importanto matriz de precos mensais
+    tabela <- read.table (arquivo, header = T, sep=";", dec=",",
+                          row.names=1, skip=pula_linha,
+                          na.strings="-", stringsAsFactors=F)
+    
+    # Retirando as empresas financeiras (coluna 1109(ABCB11) a 1224)
+    if (financeiras == F ) { tabela     <- tabela[c(-1109:-1224)] }
+    
+    # TODO: Fazer a seleÁ„o de empresas financeiras e nao financeiras
+    # automatica.
+    
+    # Filtrando a data em matriz mensal
+    tabela <-  tabela[(as.Date(rownames(tabela), format=formato) >= doDia
+                       &
+                           as.Date(rownames(tabela), format=formato) <= ateDia)
+                      ,]
+    return(tabela)
 }
-rm(list=c("i","j"))
 
-## FILTRO DE LIQUIDEZ CONFORME ÕNDICE DE NEGOCIABILIDADE
-# Importanto matriz com Ìndice de Negociabilidade
-mNegociabilidade <- importaBaseCSV("Input/mNegociabilidade.csv", START, END,
-                                   formato="%d/%m/%Y")
+createDateIndex <- function() {
+    # FunÁ„o que cria Ìndice de data
+    # Criando de uma matriz mapa de datas
+    matriz_indice <- data.frame(Date=seq(from=START,to=END,by="month"))
+    
+    matriz_indice <- cbind(matriz_indice,
+                           M=as.numeric(substr(as.character(matriz_indice$Date),6,7)),
+                           Y=as.numeric(substr(as.character(matriz_indice$Date),1,4)),
+                           Q=as.numeric(substr(quarters(matriz_indice$Date),2,2))
+    )
+    matriz_indice <- cbind(matriz_indice,
+                           Quarter=paste(matriz_indice$Q, "T", matriz_indice$Y, sep = ""),
+                           nM = seq(1:length(matriz_indice$Date)),
+                           nY = matriz_indice$Y+1-as.numeric(substr(as.character(START),1,4)),
+                           nQ = sort(rep(1:ceiling(nrow(matriz_indice)/4),4))[1:nrow(matriz_indice)]
+    )
+    
+    return(matriz_indice)
+}
 
-# Transformando em uma matriz anual
-yNegociabilidade            <- mNegociabilidade[dateIndex$M==12,]
+filter24months <- function (sample1, prices) {
+    # Function to filter the stocks that have 24 months of consecutive prices
+    newSample <- sample1
+    for ( j in seq_len(ncol(prices)) ) {
+        # Fazer essa rotina para coluna j
+        for ( i in seq_len(nrow(prices)) ) {
+            # Fazer essa rotina para cada linha i da coluna j
+            # Verificar se a linha i est? entre START+1 e END-1
+            if ( i<=12 ) {
+                newSample[as.numeric(dateIndex$nY[i]),j] <- 0
+            }
+            else if( i>floor(nrow(dateIndex)/12)*12 ) {
+                # nao faz nada
+            }
+            # Verificar se a linha i corresponde ao mes de junho
+            else if ( as.numeric(dateIndex$M[i])==6 ) {
+                # Verifica se tem pre√ßo nos 24 meses consecutivos
+                if (sum(!is.na(prices[(i-12):(i+12),j])) != 25) {
+                    # E atribui 0 na matriz de controle da amostra
+                    newSample[as.numeric(dateIndex$nY[i]),j] <- 0
+                }
+            }
+        }
+    }
+    return(newSample)
+}
+
+# Read Data == ================================================================
+
+# Stock Prices
+mPrices     <- importaBaseCSV("Input/mPrices.csv", START, END)
+
+# Initial Sample == ===========================================================
+
+# Initial Sample (1 para todos os anos que houve cotacao)
+ySample0 <- importaBaseCSV("Input/ySample0.csv", START, END, formato="%Y")
+
+dateIndex <- createDateIndex() # Generate date map matrix for the next cmd
+
+ySample24m  <- filter24months(ySample0, mPrices) # Filter of 24 months
+
+# Bovespa Negociability Index
+mNegociabilidade <- importaBaseCSV("Input/mNegociabilidade.csv", START, END)
+
+# Convert monthly to yearly
+yNegociabilidade <- mNegociabilidade[dateIndex$M==12,]
 row.names(yNegociabilidade) <- dateIndex$Y[dateIndex$M==12]
 
-# Criando filtro de Liquidez conforme Indice de Negociabilidade
-ySampleNegociab <- yPopulation
+# Liquidity filter by negociability index
+ySampleNegociab <- ySample0
 ySampleNegociab[yNegociabilidade <= 0.01] <- 0
 
-## FILTRO PL POSITIVO
+# Read Book Value
 yBookFirm <- importaBaseCSV("Input/yBookFirm.csv", START, END, formato="%Y")
-# Criando Filtro de PL Positivo
-ySamplePositiveBook <- yPopulation
+
+# Positive Book Value Filter
+ySamplePositiveBook <- ySample0
 ySamplePositiveBook[ is.na(yBookFirm) ] <- 0
 ySamplePositiveBook[ yBookFirm < 0    ] <- 0
 
-## AMOSTRA FINAL
-# Criando matriz de controle da amostra
+# Final Sample == =============================================================
+
+# Compute all the filters together
 ySample <- ySample24m * ySampleNegociab * ySamplePositiveBook
 
-#rowSums(ySample)[-1]
-#rowSums(ySamplePositiveBook)[-1]
-#rowSums(ySample24m)[-1]
-#rowSums(ySampleNegociab)[-1]
-#round(rowMeans(ySample)[-1],2)
-#round(rowMeans(ySamplePositiveBook)[-1],2)
-#round(rowMeans(ySample24m)[-1],2)
-#round(rowMeans(ySampleNegociab)[-1],2)
-#round(rowSums(ySample)[-1]/rowSums(yPopulation)[-1],2)
-#round(rowSums(ySamplePositiveBook)[-1]/rowSums(yPopulation)[-1],2)
-#round(rowSums(ySample24m)[-1]/rowSums(yPopulation)[-1],2)
-#round(rowSums(ySampleNegociab)[-1]/rowSums(yPopulation)[-1],2)
-#rowSums(ySampleNegociab)[-1]-rowSums(ySample24m*ySampleNegociab)[-1]
-#rowSums(ySample24m)[-1]-rowSums(ySample24m*ySampleNegociab)[-1]
-
-########## Transformando matriz de controle anual em mensal
-# Repetindo valores 12 vezes para da cano
-
-mSample <- ySample[sort(rep(1:nrow(ySample),12)),]
-
-# Adicionando as linhas p/ o ano incompleto igual ao dezembro do ultimo ano
-# completo
-
+## Generate Yearly Sample Control Matrix
+mSample <- ySample[sort(rep(1:nrow(ySample),12)),] # repeat 12 times the values
+# Add rows to the last incomplete year
 mSample <- rbind(mSample, mSample[rep(nrow(mSample),
                                       nrow(mPrices)-nrow(mSample)), ])
+row.names(mSample) <- row.names(mPrices) # Set name of the rows equal mPrices
 
-# Colocando o valor das colunas iguais
-row.names(mSample) <- row.names(mPrices)
+# Results of Sample == ========================================================
+rowSums(ySample0)[-1]            # Initial Sample
+
+rowSums(ySample24m)[-1]          # Just the firms with 24 months of price
+round(rowSums(ySample24m)[-1]/rowSums(ySample0)[-1],2)          # %
+
+rowSums(ySamplePositiveBook)[-1] # Just the Positive book
+round(rowSums(ySamplePositiveBook)[-1]/rowSums(ySample0)[-1],2) # %
+
+rowSums(ySampleNegociab)[-1]     # Just the most liquid
+round(rowSums(ySampleNegociab)[-1]/rowSums(ySample0)[-1],2)     # %
+
+rowSums(ySample)[-1]             # Final Sample
+round(rowSums(ySample)[-1]/rowSums(ySample0)[-1],2)             # %
+
+# The first year was not computed because the 24 months filter
+
+# OK Negociability but not OK 24 months
+rowSums(ySampleNegociab)[-1]-rowSums(ySample24m*ySampleNegociab)[-1]
+
+# OK 24 months but not OK Negociability
+rowSums(ySample24m)[-1]-rowSums(ySample24m*ySampleNegociab)[-1]
+
+# -----------------------------------------------------------------------------
 
 ## INVESTOR SENTIMENT ## ######################################################
-
-FindThisScriptsLocation()
-
-source("iSent1.R")             # Estimar ?ndice de Sentimento
-
-
 ## 1. Õndice de Sentimento
 # 1.1. Temporalidade das Proxies: Selecionar proxies que ser„o defasadas
 # 1.2. Õndice de Sentimento n„o Ortogonalizado

@@ -165,7 +165,7 @@ rowSums(ySample24m)[-1]-rowSums(ySample24m*ySampleNegociab)[-1]
 
 # -----------------------------------------------------------------------------
 
-## INVESTOR SENTIMENT ## ######################################################
+## INVESTOR SENTIMENT INDEX ## ######################################################
 ## 1. Índice de Sentimento
 # 1.1. Temporalidade das Proxies: Selecionar proxies que serão defasadas
 # 1.2. Índice de Sentimento não Ortogonalizado
@@ -394,12 +394,12 @@ test(1,1,2,3,4,5)
 
 # 2-portfolio_construction.R == ===============================================
 ## 2. Portfolios
-# 2.1 Construir Carteiras
-#       portfolioAssets cria_matriz_carteira - retorna dCriterio
-# 2.2 Interação de Carteiras
-#       portfolioAssetesInteracao = portfolioAssets1 x portfolioAssets2
-# 2.3 Retorno das Carteiras
-#       portfolioSerie - retorna ...
+## 2.1 Construir Carteiras
+##       portfolioAssets cria_matriz_carteira - retorna dCriterio
+## 2.2 Interação de Carteiras
+##       portfolioAssetesInteracao = portfolioAssets1 x portfolioAssets2
+## 2.3 Retorno das Carteiras
+##       portfolioSerie - retorna ...
 
 SelectStockBaskets <- function (strategy, nPortfolios, iPortfolio) {
         

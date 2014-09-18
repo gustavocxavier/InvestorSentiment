@@ -34,7 +34,7 @@ mPrices     <- importaBaseCSV("Input/mPrices.csv", START, END,
 yPopulation <- importaBaseCSV("Input/yPopulation.csv", START, END, formato="%Y")
 
 # Carregando função para a criação de uma matriz mapa de datas
-source("MyFuns/createDateIndex.R")
+#source("MyFuns/createDateIndex.R")
 
 # Criando matriz mapa de datas
 dateIndex <- createDateIndex()

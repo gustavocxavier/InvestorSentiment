@@ -7,21 +7,26 @@
 # Description: Script to compute que Investor Sentiment Index of the brazilian
 # market.                       
 # 
-# investor_sentiment_and_anomalies.R
-#
+# SETTINGS
+# GETTING CLEANING DATA
+# INVESTOR SENTIMENT INDEX
+# 
 
 ## SETTINGS ## ################################################################
 ## Setting Parameters
 ## Definindo Parametros
 
+# == Date === =================================================================
 START <- as.Date("2001-01-01") # Initial Date
 END   <- as.Date("2013-12-31") # Final Date
 
-## GETTING DATA AND CLEANING ## ###############################################
+
+
+## GETTING CLEANING DATA ## ###################################################
 ## Get Data and Clean
 ## Carregar e limpar dados
 
-# Functions == ================================================================
+# === Functions === ===========================================================
 
 importaBaseCSV <- function(arquivo, doDia, ateDia,
                            formato="%d/%m/%Y", pula_linha=0, financeiras=F) {
@@ -95,12 +100,12 @@ filter24months <- function (sample1, prices) {
     return(newSample)
 }
 
-# Read Data == ================================================================
+# === Read Data === ===========================================================
 
 # Stock Prices
 mPrices     <- importaBaseCSV("Input/mPrices.csv", START, END)
 
-# Initial Sample == ===========================================================
+# === Initial Sample === ======================================================
 
 # Initial Sample (1 para todos os anos que houve cotacao)
 ySample0 <- importaBaseCSV("Input/ySample0.csv", START, END, formato="%Y")
@@ -128,7 +133,7 @@ ySamplePositiveBook <- ySample0
 ySamplePositiveBook[ is.na(yBookFirm) ] <- 0
 ySamplePositiveBook[ yBookFirm < 0    ] <- 0
 
-# Final Sample == =============================================================
+# === Final Sample === ========================================================
 
 # Compute all the filters together
 ySample <- ySample24m * ySampleNegociab * ySamplePositiveBook
@@ -140,7 +145,7 @@ mSample <- rbind(mSample, mSample[rep(nrow(mSample),
                                       nrow(mPrices)-nrow(mSample)), ])
 row.names(mSample) <- row.names(mPrices) # Set name of the rows equal mPrices
 
-# Results of Sample == ========================================================
+# === Results of Sample === ===================================================
 rowSums(ySample0)[-1]            # Initial Sample
 
 rowSums(ySample24m)[-1]          # Just the firms with 24 months of price
@@ -163,120 +168,86 @@ rowSums(ySampleNegociab)[-1]-rowSums(ySample24m*ySampleNegociab)[-1]
 # OK 24 months but not OK Negociability
 rowSums(ySample24m)[-1]-rowSums(ySample24m*ySampleNegociab)[-1]
 
-# -----------------------------------------------------------------------------
 
-## INVESTOR SENTIMENT INDEX ## ######################################################
+
+## INVESTOR SENTIMENT INDEX ## ################################################
+
 ## 1. Índice de Sentimento
-# 1.1. Temporalidade das Proxies: Selecionar proxies que serão defasadas
-# 1.2. Índice de Sentimento não Ortogonalizado
-# 1.3. Índice de Sentimento Ortogonalizado à variáveis macroeconômicas  
-# _____________________________________________________________________________
+## 1.1. Temporalidade das Proxies: Selecionar proxies que serão defasadas
+## 1.2. Índice de Sentimento não Ortogonalizado
+## 1.3. Índice de Sentimento Ortogonalizado à variáveis macroeconômicas  
 
-# Investor Sentiment Index #####################################################
+# === Read/Compute Proxies === ===============================================
 
-########## Carregando matriz de proxies
-mProxies   <- read.table ("Input/mProxies.csv",   header = T, 
-                          sep=";", dec=",", na.strings="-", row.names=1)
+mProxies   <- read.table ("Input/mProxies.csv",          # Read data
+                          header = T, sep=";", dec=",",
+                          row.names=1)
+x <- as.Date(rownames(mProxies), format="%d/%m/%Y")      # Temporary variable
+mProxies <- mProxies[(x >= START & x <= END),] ; rm(x) ; # Date filter
+as.dist(round(cor(mProxies),2))                          # Correlations
 
-# Filtrando a data em matriz mensal
-mProxies <-  mProxies[(as.Date(rownames(mProxies), format="%d/%m/%Y") >= START
-                       &
-                               as.Date(rownames(mProxies), format="%d/%m/%Y") <= END ),]
+# === First Step === ==========================================================
+# Estimating first component of all proxies and their lags and choose the best
 
-# Verificando correla??o entre as proxies
-as.dist(round(cor(mProxies),2))
+PCAstep1 <- prcomp(mProxies, scale=T)
 
-# _____________________________________________________________________________
-## COLETA DIRETO DO SITE DA CVM EM DESENVOLVIMENTO
-##
-# source("MyFuns/coletaDEBnaCVM.R")
-# source("MyFuns/coletaIPOnaCVM.R")
-# source("MyFuns/coletaVariosAnosCVM.R")
-#
-## Baixando dados de IPO
-#IPOs <- coletaVariosAnosCVM(1999:2013, coletaIPOnaCVM)
-## Baixando dados de emissão de dívidas
-#DEBs <- coletaVariosAnosCVM(1999:2013, coletaDEBnaCVM)
-## Guardando dados em formato txt e csv
-#write.table(IPOs, "Output/IPOs.txt", sep="\t", row.names = F)
-#write.table(DEBs, "Output/DEBs.txt", sep="\t", row.names = F)
-#write.table(IPOs, "Output/IPOs.csv", sep=";", row.names = F)
-#write.table(DEBs, file="Output/DEBs.csv", sep=";", row.names = F)
-## write.csv(IPOs, file="Output/IPOsCSV.csv", row.names = F)
-## write.csv(DEBs, file="Output/DEBsCSV.csv", row.names = F)
-## IPO2 <- read.table("Output/IPOs.txt", sep="\t", skip=1, col.names=c("data","empresa","tipo","valor"))
-## identical(IPOs, IPO2)
-#
-## --- FALTA AGORA TRATAR OS DADOS ---
-# transformaDecimal <- function (vetor) {
-#        vetor <- gsub(".", "",  vetor, fixed=T)
-#        vetor <- gsub(",", ".", vetor, fixed=T)
-#        return(vetor)
-# }
-# transformaDecimal(IPOs$valor)
-# _____________________________________________________________________________
+chooseLAG <- function (m) {
+    
+    # FUNCTION TO CHOOSE THE BEST CORRELATION BETWEEN THE EACH CURRENT AND
+    # LAGGED PROXIES
+    # ______________________________________________________________
+    # INPUT:
+    #
+    # m ...... Proxies Data
+    #
+    # ______________________________________________________________
 
-
-########## Sentiment - ACP Step 1
-
-# Estimando primeira componente da primeira etapa
-step1.pca <- prcomp(mProxies, scale=T)
-
-# Funcao para excluir menor correlacao
-escolheDefasagem <- function (m) {
-        nproxies <- ncol(m)
-        i <- 1
-        delete <- 0
-        for ( i in 1:(nproxies/2) ) {
-                proxy <- cor(step1.pca$x[,"PC1"],m)[i]
-                proxy_lagged <- cor(step1.pca$x[,"PC1"],m)[i+(nproxies/2)]
-                if ( abs(proxy) < abs(proxy_lagged) ) { delete <- c(delete,-1*i) }
-                if ( abs(proxy) > abs(proxy_lagged) ) { delete <- c(delete,-1*(i+(nproxies/2))) }
-        }
-        delete <- delete[-1]
-        return(m[delete])
+    nproxies <- ncol(m)
+    i <- 1
+    delete <- 0
+    for ( i in 1:(nproxies/2) ) {
+        proxy <- cor(PCAstep1$x[,"PC1"],m)[i]
+        proxy_lagged <- cor(PCAstep1$x[,"PC1"],m)[i+(nproxies/2)]
+        if ( abs(proxy) < abs(proxy_lagged) ) { delete <- c(delete,-1*i) }
+        if ( abs(proxy) > abs(proxy_lagged) ) { delete <- c(delete,-1*(i+(nproxies/2))) }
+    }
+    delete <- delete[-1]
+    return(m[delete])
+    
+    # ______________________________________________________________
+    # OUTPUT: data.frame/matrix just with the best proxies
+    # ______________________________________________________________
 }
 
-# Escolhendo defasagem
-round(cor(step1.pca$x[,"PC1"],mProxies),2)
-mBestProxies <- escolheDefasagem(mProxies)
+round(cor(PCAstep1$x[,"PC1"],mProxies),2)         # The correlations
+mBestProxies <- chooseLAG(mProxies);rm(chooseLAG) # Choosing LAGs...
+colnames(mBestProxies)                            # Best proxies
+round(cor(PCAstep1$x[,"PC1"],mBestProxies),2)     # Correlation with PC1
+as.dist(round(cor(mBestProxies),2))               # Correlations between them
 
-# Proxies escolhidas
-colnames(mBestProxies)
-round(cor(step1.pca$x[,"PC1"],mBestProxies),2)
+# === Second Step === =========================================================
+# Estimating first component of the best proxies
 
-# CORRELA??O DAS PROXIES APÓS A DEFASAGEM
-as.dist(round(cor(mBestProxies),2))
+PCAstep2 <-prcomp(mBestProxies, scale=T)
 
-########## Sentiment - ACP Step 2
+cor(PCAstep1$x[,"PC1"],PCAstep2$x[,"PC1"]) # Correlation with PC1 of the 1º step
+summary(PCAstep2)                          # Proportion of Variance
+PCAstep2$rotation[,"PC1"] # Not orthogonalized index (osb.: not important)
 
-# Estimando Componente principal da terceira etapa
-step2.pca <-prcomp(mBestProxies, scale=T)
-# Verificando correlacao com o primeiro indice
-cor(step1.pca$x[,"PC1"],step2.pca$x[,"PC1"])
+# === Third Step === ==========================================================
+# Estimate orthogonilized proxies by the regression all raw proxies
 
-# Percentual explicado da variancia
-summary(step2.pca)
-# summary(princomp(mProxies, scores=T, cor=T)) # Metodo alternativo (deu igual)
-
-# Equacao do Indice de Sentimento Nao Ortogonalizado
-step2.pca$rotation[,"PC1"]
-
-########## Sentiment - ACP Step 3 # Otogonalizado
-
-########## Carregando matriz de proxies
+# Read macroeconomics variables
 mMacroeconomics   <- read.table ("Input/mMacroeconomics.csv",   header = T, 
                                  sep=";", dec=",", na.strings="-", row.names=1)
 
-# Filtrando a data em matriz mensal
-mMacroeconomics <-  mMacroeconomics[(
-        as.Date(rownames(mMacroeconomics), format="%d/%m/%Y") >= START 
-        &
-                as.Date(rownames(mMacroeconomics), format="%d/%m/%Y") <= as.Date("2013-12-01")
-        #as.Date(rownames(mMacroeconomics), format="%d/%m/%Y") <= END
-),]
+# Date Filter
+x <- as.Date(rownames(mMacroeconomics), format="%d/%m/%Y")
+mMacroeconomics <-  mMacroeconomics[(x >= START & x <= as.Date("2013-12-01")),]
+rm(x)
+                                                  # <= END
 
-END   <- as.Date("2014-07-01") # ????????????????????
+END   <- as.Date("2014-07-01") # TODO: Discover why this
 
 # dummy SELIC igual a 1 quando a taxa cai em rela??o ao m?s anterior
 dSELIC <- c(0,as.numeric(embed(mMacroeconomics$SELIC,2)[,1] <= 
@@ -304,91 +275,39 @@ for ( i in 1:ncol(mProxiesOrtog)) {
 rm(i)
 
 # Estimando Componentes Principais da Terceira Etapa
-step3.pca <-prcomp(mProxiesOrtog, scale=T)
+PCAstep3 <-prcomp(mProxiesOrtog, scale=T)
 
 # Estimando Componentes Principais da Terceira Etapa
-step3.pca <-prcomp(mProxiesOrtog, scale=T)
-# step3.pca <- princomp(mProxiesOrtog, scores=T, cor=T) # Metodo alternativo
+PCAstep3 <-prcomp(mProxiesOrtog, scale=T)
+# PCAstep3 <- princomp(mProxiesOrtog, scores=T, cor=T) # Metodo alternativo
 
 # Verificando correlacao com o primeiro indice
-cor(step2.pca$x[,"PC1"],step3.pca$x[,"PC1"])
+cor(PCAstep2$x[,"PC1"],PCAstep3$x[,"PC1"])
 
 # Percentual explicado da variancia
-summary(step3.pca)
+summary(PCAstep3)
 # summary(princomp(mProxiesOrtog, scores=T, cor=T)) # Metodo alternativo
 
 # Scree plot of eigenvalues
-# screeplot(step3.pca, type="line", main="Scree Plot Sentimento Ortogonalizado")
+screeplot(PCAstep3, type="line", main="Scree Plot Sentimento Ortogonalizado")
 
-# Equacao do Indice de Sentimento Ortogonalizado
-step3.pca$rotation[,"PC1"]
+PCAstep3$rotation[,"PC1"] * (-1) # Equacao do Indice de Sent. Ortogonalizado
+Sent <- PCAstep3$x[,"PC1"]
 
-# Sent <- step3.pca$x[,"PC1"]
-
-# RESULTADOS ------------------------------------------------------------------------------------------------------
-as.dist(round(cor(mProxies),2))                       # Verificando correlação entre as proxies
-round(cor(step1.pca$x[,"PC1"],mProxies),2)            # Correlação das Proxies com 1ª Componente da 1ª Etapa
-round(cor(step1.pca$x[,"PC1"],mBestProxies),2)        # Correlação Proxies Escolhidas c/ 1ª Componente da 1ª Etapa
-cor(step1.pca$x[,"PC1"],step2.pca$x[,"PC1"]) * (-1)   # Verificando correlacao com o primeiro indice
-summary(step2.pca)                                    # Percentual explicado da variancia
-step2.pca$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Nao Ortogonalizado
-as.dist(round(cor(mBestProxies),2))                   # Correlação Proxies Escolhidas
-round(cor(step2.pca$x[,"PC1"],mBestProxies),2) * (-1) # Correlação Proxies Escolhidas c/ 1ª Componente da 2ª Etapa
-cor(step2.pca$x[,"PC1"],step3.pca$x[,"PC1"])          # Correlação do Indice da 3ª etapa com o da 2ª etapa
-summary(step3.pca)                                    # Percentual explicado da variancia
-step3.pca$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Ortogonalizado
+# === Sentiment Results === ===================================================
+# as.dist(round(cor(mProxies),2))                      # Verificando correlação entre as proxies
+# round(cor(PCAstep1$x[,"PC1"],mProxies),2)            # Correlação das Proxies com 1ª Componente da 1ª Etapa
+# round(cor(PCAstep1$x[,"PC1"],mBestProxies),2)        # Correlação Proxies Escolhidas c/ 1ª Componente da 1ª Etapa
+# cor(PCAstep1$x[,"PC1"],PCAstep2$x[,"PC1"]) * (-1)    # Verificando correlacao com o primeiro indice
+# summary(PCAstep2)                                    # Percentual explicado da variancia
+# PCAstep2$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Nao Ortogonalizado
+# as.dist(round(cor(mBestProxies),2))                  # Correlação Proxies Escolhidas
+# round(cor(PCAstep2$x[,"PC1"],mBestProxies),2) * (-1) # Correlação Proxies Escolhidas c/ 1ª Componente da 2ª Etapa
+# cor(PCAstep2$x[,"PC1"],PCAstep3$x[,"PC1"])           # Correlação do Indice da 3ª etapa com o da 2ª etapa
+# summary(PCAstep3)                                    # Percentual explicado da variancia
+# PCAstep3$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Ortogonalizado
 
 
-# Scree plot of eigenvalues
-screeplot(step3.pca, type="line", main="Scree Plot Sentimento Ortogonalizado")
-
-# 1-investor_sentiment.R == ===================================================
-
-# Depois colocar em um arquivo investor_sentiment.R
-
-InvestorSentimentStep1 <- function (sentimentProxies, nLag) {
-        # Estima Indice com todas as proxies
-        # retorna (indice0)
-}
-
-ChooseBestProxies <- function (prx, nLag) {
-        # prx:  Proxies para o Sentimento do Investidor
-        # nLag: Quantidade de periodos da defasagem
-        # Estima sentimento 1
-        # IMPRIME: correlations
-        # IMPRIME: correlations with 1st componente
-        # IMPRIME: bestproxies
-        # IMPRIME: correlations
-        # RETORNA: Série de Melhores Proxies
-}
-
-InvestorSentimentStep2 <- function (bestProxies, invSent1) {
-        # Estima
-        # Apresenta correlação com o primeiro
-        # Apresenta percentual de variancia explicadas
-        # retorna (indice1)
-}
-
-InvestorSentimentStep3 <- function (bestProxies, macroVariables, invSent2) {
-        # Estima
-        # Apresenta correlação com o segundo
-        # Apresenta percentual de variancia explicada
-        # retorna (indice2)
-}
-
-
-test <- function (...) {
-        print(x)
-        print(sum(...))
-}
-test(1,1,2,3,4,5)
-
-## PRICING MODEL ## ###########################################################
-## 3. Fatores de Risco
-# 3.1 Fator de Mercado
-# 3.2 Construir Carteiras
-# 3.3 Interagir Carteiras
-# 3.4 Retorno das Carteiras Ponderado pelo Valor
 
 ## CONSTRUCT PORTFOLIOS ## ####################################################
 
@@ -647,11 +566,11 @@ seriePortBM1 <- portfolioSerie(mReturns, mMarketValue, portfolioAssets2(yBM,5,1)
 
 # TESTE INDICE
 LAG <- 12
-summary(lm(seriePortBM1$rWV[(1+LAG):156]  ~ step3.pca$x[,"PC1"][1:(156-LAG)]))
+summary(lm(seriePortBM1$rWV[(1+LAG):156]  ~ PCAstep3$x[,"PC1"][1:(156-LAG)]))
 
 
 length(seriePortBM1$rWV[13:156])
-length(step3.pca$x[,"PC1"][1:144])
+length(PCAstep3$x[,"PC1"][1:144])
 
 
 # _____________________________________________________________________________
@@ -702,6 +621,14 @@ criterin <- yBookFirm[1:2,1:nAtivos] / valorzin[c(12,24),]
 #
 #
 
+## PRICING MODEL ## ###########################################################
+## 3. Fatores de Risco
+# 3.1 Fator de Mercado
+# 3.2 Construir Carteiras
+# 3.3 Interagir Carteiras
+# 3.4 Retorno das Carteiras Ponderado pelo Valor
+
+
 ## INVESTOR SENTIMENT AND ANOMALIES ## #########################################
 # Sentimento do Investidor e Anomalias
 # 1. Análise das Médias após períodos de Sentimento Alto e Baixo
@@ -711,9 +638,9 @@ criterin <- yBookFirm[1:2,1:nAtivos] / valorzin[c(12,24),]
 # 2.3 Extremos, dummys
 #
 
-# Análise de Médias == =========================================================
+# === Análise de Médias === ===================================================
 
-# Predictive Regressions == ====================================================
+# === Predictive Regressions === ==============================================
 
 # Sent.Long.Beta   <- lm(Long.Beta  ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
 # Sent.Short.Beta  <- lm(Short.Beta ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)

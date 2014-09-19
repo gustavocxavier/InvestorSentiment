@@ -310,8 +310,6 @@ Sent <- PCAstep3$x[,"PC1"]
 
 
 ## CONSTRUCT PORTFOLIOS ## ####################################################
-
-# 2-portfolio_construction.R == ===============================================
 ## 2. Portfolios
 ## 2.1 Construir Carteiras
 ##       portfolioAssets cria_matriz_carteira - retorna dCriterio
@@ -320,55 +318,44 @@ Sent <- PCAstep3$x[,"PC1"]
 ## 2.3 Retorno das Carteiras
 ##       portfolioSerie - retorna ...
 
-SelectStockBaskets <- function (strategy, nPortfolios, iPortfolio) {
-        
-}
-constructPortfolio <- function (strategy, nPortfolios, iPortfolio) {
-        
-}
-PortfolioSerie     <- function (SelectedStocks, Returns, MarketValues) {
-        # Retorna Serie de determinado portfolio
-}
-LongShortSeries    <- function (strategy, nPortfolios, RET, MV) {
-        cat("rLong, mvLong, rShort, mvShort")
-}
+# === Functions === ===========================================================
 
-# ---
-
-# Retorna os valores máximos e mínimos para formação de um portfolio
 portfolioRange <- function(CRITERIO, nPortfolios=5, portfolio=1) {
-        # Cria vetor de sequencia
-        x <- c(0,seq(1:nPortfolios)/nPortfolios)
-        # Salvando o valor maximo e minimo
-        RANGE <- quantile(CRITERIO, x[portfolio:(portfolio+1)], na.rm=T)
-        # Retorna a faixa de valor do portfolio escolhido
-        return(RANGE)
+    
+    # ______________________________________________________________
+    # 
+    # Retorna os valores máximos e mínimos para formação de um portfolio
+    # Cria vetor de sequencia
+    x <- c(0,seq(1:nPortfolios)/nPortfolios)
+    # Salvando o valor maximo e minimo
+    RANGE <- quantile(CRITERIO, x[portfolio:(portfolio+1)], na.rm=T)
+    # Retorna a faixa de valor do portfolio escolhido
+    
+    # ______________________________________________________________
+    
+    return(RANGE)
 }
-
-# ---
 
 `%between%` <- function(x,rng) {
-        
-        # FUNÇÃO QUE VERIFICA SE UM VALOR ESTÁ ENTRE OS EXTREMOS DE UMA
-        # SÉRIE
-        # ______________________________________________________________
-        # INPUT:
-        #
-        # x ...... Valor de interesse
-        # rng .... Vetor com a série ou os extremos
-        #
-        # Sintaxe: x %between% rng
-        #
-        # ______________________________________________________________
-        
-        x <= max(rng,na.rm = TRUE) & x >= min(rng,na.rm = TRUE)
-        
-        # ______________________________________________________________
-        # OUTPUT: Valor lógico
-        # ______________________________________________________________
+    
+    # FUNÇÃO QUE VERIFICA SE UM VALOR ESTÁ ENTRE OS EXTREMOS DE UMA
+    # SÉRIE
+    # ______________________________________________________________
+    # INPUT:
+    #
+    # x ...... Valor de interesse
+    # rng .... Vetor com a série ou os extremos
+    #
+    # Sintaxe: x %between% rng
+    #
+    # ______________________________________________________________
+    
+    x <= max(rng,na.rm = TRUE) & x >= min(rng,na.rm = TRUE)
+    
+    # ______________________________________________________________
+    # OUTPUT: Valor lógico
+    # ______________________________________________________________
 }
-
-# ---
 
 portfolioAssets <- function(CRITERIO, nPortfolios=5, portfolio=1) {
         
@@ -413,8 +400,6 @@ portfolioAssets2 <- function(CRITERIO, nPortfolios=5, portfolio=1) {
         # RETORNAR O DATA FRAME
         return(dCriterioMatrix)
 }
-
-# ---
 
 portfolioSerie <- function (RETURN, MV, PortfolioAssets) {
         
@@ -476,30 +461,42 @@ portfolioSerie <- function (RETURN, MV, PortfolioAssets) {
         
 }
 
-# Calculando matriz de retornos
-mPrices     <- importaBaseCSV("Input/mPrices.csv", (START-31), END, formato="%d/%m/%Y")
-mReturns    <- as.data.frame(diff(log(as.matrix(mPrices))))
-mPrices     <- importaBaseCSV("Input/mPrices.csv", START, END, formato="%d/%m/%Y")
+# === Returns === =============================================================
 
-# Importando valores de valor de Mercado
+# Compute Returns
+tempPrices  <- importaBaseCSV("Input/mPrices.csv", (START-31), END)
+mReturns    <- as.data.frame(diff(log(as.matrix(mPrices)))) ; rm(tempPrices)
+
+# Read Market Value
 mMarketValue     <- importaBaseCSV("Input/mMarketValue.csv",
-                                   START,
-                                   END,
-                                   formato="%d/%m/%Y",
-                                   pula_linha=1)
+                                   START, END, pula_linha=1)
 
-# Transformando matriz mensal em anual
+# Convert monthly data to yearly
 yMarketValue <- mMarketValue[dateIndex$M==12,]
 
-# Calcular BM
+yMarketValue[ySample==0]      <- NA
+yMarketValue[yMarketValue==0] <- NA
+yBookFirm[ySample==0]         <- NA
+
+# Compute Book-to-market
 yBM <- yBookFirm / yMarketValue
+length(yBookFirm[yBookFirm==0])
+yBM[yMarketValue==0] <- NA
+yBM[yBM==+Inf]
+sum(yBookFirm==0, na.rm=T)
+sum(yMarketValue==0, na.rm=T)
+sum(yBM<=-Inf, na.rm=T)
+
+head(which(yBookFirm!=0, arr.ind=T))
+yBookFirm[,1:2]
 
 ##Teste Range
-portfolioRange(yMarketValue[1,],2,1)
-portfolioRange(yBM[1,],3,1) # Verificar o -Inf e o +Inf
+portfolioRange(yMarketValue[2,],2,1)
+portfolioRange(yBM,3,1) # Verificar o -Inf e o +Inf
 
+# szS szB bmH bmN bmL SH SN SL BN BL
 AssetsSize_S <- portfolioAssets2(yMarketValue,2,1)  # Small
-AssetsSize_B <- portfolioAssets2(yMarketValue,2,2)  # Big
+AssetsSize_B <- portfolioAssets2(yMarketValue,2,2)  # Big   
 
 AssetsBM_H <- portfolioAssets2(yBM,3,1)             # Value (High BM)
 AssetsBM_N <- portfolioAssets2(yBM,3,2)             # Neutral

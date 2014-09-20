@@ -7,12 +7,13 @@
 # Description: Script to compute que Investor Sentiment Index of the brazilian
 # market.                       
 # 
-# SETTINGS
-# GETTING CLEANING DATA
-# INVESTOR SENTIMENT INDEX
+# 0. SETTINGS
+# 1. GETTING CLEANING DATA
+# 2. INVESTOR SENTIMENT INDEX
+# 3. CONSTRUCT PORTFOLIOS
 # 
 
-## SETTINGS ## ################################################################
+## 0. SETTINGS ## #############################################################
 ## Setting Parameters
 ## Definindo Parametros
 
@@ -22,7 +23,7 @@ END   <- as.Date("2013-12-31") # Final Date
 
 
 
-## GETTING CLEANING DATA ## ###################################################
+## 1. GETTING CLEANING DATA ## ################################################
 ## Get Data and Clean
 ## Carregar e limpar dados
 
@@ -146,7 +147,7 @@ mSample <- rbind(mSample, mSample[rep(nrow(mSample),
 row.names(mSample) <- row.names(mPrices) # Set name of the rows equal mPrices
 
 # === Results of Sample === ===================================================
-rowSums(ySample0)[-1]            # Initial Sample
+rowSums(ySample0)#[-1]                # Initial Sample
 
 rowSums(ySample24m)[-1]          # Just the firms with 24 months of price
 round(rowSums(ySample24m)[-1]/rowSums(ySample0)[-1],2)          # %
@@ -157,7 +158,8 @@ round(rowSums(ySamplePositiveBook)[-1]/rowSums(ySample0)[-1],2) # %
 rowSums(ySampleNegociab)[-1]     # Just the most liquid
 round(rowSums(ySampleNegociab)[-1]/rowSums(ySample0)[-1],2)     # %
 
-rowSums(ySample)[-1]             # Final Sample
+rowSums(ySample)#[-1]             # Final Sample
+round(rowSums(ySample)/rowSums(ySample0),2)             # %
 round(rowSums(ySample)[-1]/rowSums(ySample0)[-1],2)             # %
 
 # The first year was not computed because the 24 months filter
@@ -170,12 +172,12 @@ rowSums(ySample24m)[-1]-rowSums(ySample24m*ySampleNegociab)[-1]
 
 
 
-## INVESTOR SENTIMENT INDEX ## ################################################
+## 2. INVESTOR SENTIMENT INDEX ## #############################################
 
-## 1. Índice de Sentimento
-## 1.1. Temporalidade das Proxies: Selecionar proxies que serão defasadas
-## 1.2. Índice de Sentimento não Ortogonalizado
-## 1.3. Índice de Sentimento Ortogonalizado à variáveis macroeconômicas  
+## 2. Índice de Sentimento
+## 2.1. Temporalidade das Proxies: Selecionar proxies que serão defasadas
+## 2.2. Índice de Sentimento não Ortogonalizado
+## 2.3. Índice de Sentimento Ortogonalizado à variáveis macroeconômicas  
 
 # === Read/Compute Proxies === ===============================================
 
@@ -309,7 +311,7 @@ Sent <- PCAstep3$x[,"PC1"]
 
 
 
-## CONSTRUCT PORTFOLIOS ## ####################################################
+## 3. CONSTRUCT PORTFOLIOS ## #################################################
 ## 2. Portfolios
 ## 2.1 Construir Carteiras
 ##       portfolioAssets cria_matriz_carteira - retorna dCriterio

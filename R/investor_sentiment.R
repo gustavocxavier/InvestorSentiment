@@ -173,7 +173,6 @@ rowSums(ySample24m)[-1]-rowSums(ySample24m*ySampleNegociab)[-1]
 
 
 ## 2. INVESTOR SENTIMENT INDEX ## #############################################
-
 ## 2. Índice de Sentimento
 ## 2.1. Temporalidade das Proxies: Selecionar proxies que serão defasadas
 ## 2.2. Índice de Sentimento não Ortogonalizado
@@ -312,12 +311,12 @@ Sent <- PCAstep3$x[,"PC1"]
 
 
 ## 3. CONSTRUCT PORTFOLIOS ## #################################################
-## 2. Portfolios
-## 2.1 Construir Carteiras
+## 3. Portfolios
+## 3.1 Construir Carteiras
 ##       portfolioAssets cria_matriz_carteira - retorna dCriterio
-## 2.2 Interação de Carteiras
+## 3.2 Interação de Carteiras
 ##       portfolioAssetesInteracao = portfolioAssets1 x portfolioAssets2
-## 2.3 Retorno das Carteiras
+## 3.3 Retorno das Carteiras
 ##       portfolioSerie - retorna ...
 
 # === Functions === ===========================================================
@@ -361,11 +360,9 @@ portfolioRange <- function(CRITERIO, nPortfolios=5, portfolio=1) {
 
 portfolioAssets <- function(CRITERIO, nPortfolios=5, portfolio=1) {
         
-        #-----------------------------------------
         # CRITERIO .... Vetor de criterio
         # nPortfolios . Número de portfolios
         # iPortfolio .. Portfolio desejado
-        #-----------------------------------------
         
         # Salvando faixa de valor do portfolio escolhido
         RANGE <- portfolioRange(CRITERIO, nPortfolios, portfolio)
@@ -622,20 +619,19 @@ criterin <- yBookFirm[1:2,1:nAtivos] / valorzin[c(12,24),]
 
 ## PRICING MODEL ## ###########################################################
 ## 3. Fatores de Risco
-# 3.1 Fator de Mercado
-# 3.2 Construir Carteiras
-# 3.3 Interagir Carteiras
-# 3.4 Retorno das Carteiras Ponderado pelo Valor
+## 3.1 Fator de Mercado
+## 3.2 Construir Carteiras
+## 3.3 Interagir Carteiras
+## 3.4 Retorno das Carteiras Ponderado pelo Valor
 
 
-## INVESTOR SENTIMENT AND ANOMALIES ## #########################################
-# Sentimento do Investidor e Anomalias
-# 1. Análise das Médias após períodos de Sentimento Alto e Baixo
-# 2. Modelos Econométricos
-# 2.1 Extremos e sentimento defasado
-# 2.2 Extremos, sentimeto defasado e fatores de risco
-# 2.3 Extremos, dummys
-#
+## 4. INVESTOR SENTIMENT AND ANOMALIES ## #####################################
+## Sentimento do Investidor e Anomalias
+## 4.1. Análise das Médias após períodos de Sentimento Alto e Baixo
+## 4.2. Modelos Econométricos
+## 4.1 Extremos e sentimento defasado
+## 4.2 Extremos, sentimeto defasado e fatores de risco
+## 4.3 Extremos, dummys
 
 # === Análise de Médias === ===================================================
 

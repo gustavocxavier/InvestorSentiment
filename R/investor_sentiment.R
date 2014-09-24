@@ -7,14 +7,16 @@
 # Description: Script to compute que Investor Sentiment Index of the brazilian
 # market.                       
 # 
-# 0. SETTINGS
-# 0.1 Parameters
-# 0.2 Bibliotecas e Funcoes
-# 1. GETTING CLEANING DATA
-# 2. INVESTOR SENTIMENT INDEX
-# 3. CONSTRUCT PORTFOLIOS
-# 4. INVESTOR SENTIMENT AND ANOMALIES
-#
+
+## 1.  SETTINGS
+## 1.1 Install and load packages
+## 1.2 My Functions
+## 1.3 My Parameters <-------------- DEFINIR PARAMETROS ANTES DE RODAR O CODIGO
+## 1. GETTING CLEANING DATA
+## 2. INVESTOR SENTIMENT INDEX
+## 3. CONSTRUCT PORTFOLIOS
+## 4. INVESTOR SENTIMENT AND ANOMALIES
+##
 
 ## COISAS PRA FAZER AINDA ### #################################################
 ## - Organizar Funçoes acima
@@ -23,11 +25,89 @@
 ## - Funcao p/ retornar todos os portfolios de uma vez allPortfoliosSeries
 ## - Funcao LongShortSeries
 ## - FILTRO Bovespa Negociability Index
-## 0. SETTINGS ## #############################################################
 
-# --- BIBLIOTECAS E FUNCOES --- -------------------------------------------------
+## 1. SETTINGS ## #############################################################
+
+# === 1.1 Install and load packages === =======================================
 if ( !( "xts" %in% installed.packages() ) ) { install.packages("xts") }
 library(xts)
+
+# === 1.2 My Functions === ====================================================
+
+# --- Data Functions --- ------------------------------------------------------
+
+filterNoFinancial <- function(Sample, dbFile) {
+    # Exclui as empresas financeiras
+    # smpl ... Matriz de Amostra
+    # file ... Arquivo onde tem a relacao de empresas
+    
+    db <- read.table(dbFile, dec=",", sep=";", header = T, na.strings="-",
+                     stringsAsFactors=F)
+    
+    Sample <- reclass(Sample)
+    Sample[,(db$SetorEconomatica=="Financas e Seguros")] <- 0
+    
+    return(Sample)
+}
+
+sampleReport <- function (s0, s1) {
+    s0 <- as.xts(s0)
+    Sample0 <- rowSums(as.data.frame(s0, row.names=substr(index(s0), 1, 4)))
+    Sample  <- as.data.frame(Sample0)
+    Sample1 <- rowSums(as.data.frame(s1, row.names=substr(index(s1), 1, 4)))
+    Percent <- round(as.vector(Sample1) / as.vector(Sample0),2)
+    Sample  <- cbind(Sample, as.data.frame(Sample1), Percent)
+    colnames(Sample) <- c("Initial", "Final", "%")
+    return(Sample)
+}
+
+filterNo24months <- function(prices, InitialSample) {
+    # Descrição:
+    #
+    # (-) acoes que n apresentam 24 meses consecutivos
+    # MM: Formação das carteiras em 01/jun
+    # 12 meses antes (jun a mai) e 12 depois (jul a jun)
+    # Fator Momento: retorno de jul/(n-1):mai/(n  ) (11 meses)
+    #                precos  de jun/(n-1):mai/(n  ) (12 meses)
+    # Carteiras:     retorno de jul/(n  ):jun/(n+1)    (12 meses)
+    #                precos  de jun/(n  ):jun/(n+1) (13 meses)
+    #
+    # Argumentos
+    #
+    if (!is.xts(prices)) { prices <- as.xts(prices) }
+    n <- as.numeric(format(first(index(prices)),"%Y")) # First year
+    N <- as.numeric(format( last(index(prices)),"%Y")) # Last year
+    NewSample <- as.matrix(InitialSample)
+    NewSample[(n - (n - 1)),] <- 0 # First year equal zero
+    for ( i in (n+1):(N-1) ) {
+        p <- paste(i-1,"-06/",i+1,"-07", sep="") # Periodo de Interesse
+        NewSample[(i+1 - n),] <- !apply(prices[p], 2, anyNA)
+    }
+    NewSample[(N+1 - n),] <- 0 # First year equal zero
+    return(NewSample)
+}
+
+filterPositiveBook <- function(Sample, Book) {
+    ##
+    ## Filtrar apenas ações com patrimonio liquido positivo
+    ##
+    for ( i in 2:nrow(Sample)) {
+        Sample[i,][( Book[(i-1),]<=0 | is.na(Book[(i-1),]) )] <- 0
+    }
+    #Sample[Book<=0 | is.na(Book)] <- 0
+    #print("under construction")
+    return(Sample)
+}
+
+asLogicalDataFrame <- function (df) {
+    dfOut <- apply(df, 1, function(x) as.logical(x) )
+    dfOut <- as.data.frame(t(dfOut))
+    rownames(dfOut) <- rownames(df)
+    colnames(dfOut) <- colnames(df)
+    return(dfOut)
+}
+
+# --- Sentiment Functions --- -------------------------------------------------
 
 # --- Portfolio Functions --- -------------------------------------------------
 
@@ -270,7 +350,6 @@ mPrices.xts        <- as.xts(mPrices, descr="MONTHLY PRICES")[PERIOD.XTS]
 mPrices            <- data.frame(as.matrix(mPrices.xts)) ; rm(mPrices.xts)
 
 # === Initial Sample === ======================================================
-# --- AMOSTRA INICIAL --- -----------------------------------------------------
 # Initial Sample (1 para todos os anos que houve cotacao)
 mSample0                  <- as.matrix(mPrices)
 mSample0[!is.na(mPrices)] <- 1
@@ -281,60 +360,13 @@ ySample0[ySample0>0]      <- 1
 
 # --- FILTRO EMPRESAS NAO FINANCEIRAS --- -------------------------------------
 
-filterNoFinancial <- function(Sample, dbFile) {
-    # Exclui as empresas financeiras
-    # smpl ... Matriz de Amostra
-    # file ... Arquivo onde tem a relacao de empresas
-    
-    db <- read.table(dbFile, dec=",", sep=";", header = T, na.strings="-",
-                     stringsAsFactors=F)
-    
-    Sample <- reclass(Sample)
-    Sample[,(db$SetorEconomatica=="Financas e Seguros")] <- 0
-    
-    return(Sample)
-}
 ySample1 <- filterNoFinancial(ySample0, "Input/dbStocks.csv")
 rm(filterNoFinancial)
-sampleReport <- function (s0, s1) {
-    s0 <- as.xts(s0)
-    Sample0 <- rowSums(as.data.frame(s0, row.names=substr(index(s0), 1, 4)))
-    Sample  <- as.data.frame(Sample0)
-    Sample1 <- rowSums(as.data.frame(s1, row.names=substr(index(s1), 1, 4)))
-    Percent <- round(as.vector(Sample1) / as.vector(Sample0),2)
-    Sample  <- cbind(Sample, as.data.frame(Sample1), Percent)
-    colnames(Sample) <- c("Initial", "Final", "%")
-    return(Sample)
-}
+
 sampleReport(ySample0, ySample1)
 
 # --- FILTRO DE 24 MESES --- --------------------------------------------------
 
-filterNo24months <- function(prices, InitialSample) {
-    # Descrição:
-    #
-    # (-) acoes que n apresentam 24 meses consecutivos
-    # MM: Formação das carteiras em 01/jun
-    # 12 meses antes (jun a mai) e 12 depois (jul a jun)
-    # Fator Momento: retorno de jul/(n-1):mai/(n  ) (11 meses)
-    #                precos  de jun/(n-1):mai/(n  ) (12 meses)
-    # Carteiras:     retorno de jul/(n  ):jun/(n+1)    (12 meses)
-    #                precos  de jun/(n  ):jun/(n+1) (13 meses)
-    #
-    # Argumentos
-    #
-    if (!is.xts(prices)) { prices <- as.xts(prices) }
-    n <- as.numeric(format(first(index(prices)),"%Y")) # First year
-    N <- as.numeric(format( last(index(prices)),"%Y")) # Last year
-    NewSample <- as.matrix(InitialSample)
-    NewSample[(n - (n - 1)),] <- 0 # First year equal zero
-    for ( i in (n+1):(N-1) ) {
-        p <- paste(i-1,"-06/",i+1,"-07", sep="") # Periodo de Interesse
-        NewSample[(i+1 - n),] <- !apply(prices[p], 2, anyNA)
-    }
-    NewSample[(N+1 - n),] <- 0 # First year equal zero
-    return(NewSample)
-}
 ySample2 <- filterNo24months(mPrices, ySample0) * ySample1
 rm(filterNo24months)
 sampleReport(ySample0, ySample2)
@@ -395,19 +427,6 @@ yBookFirm            <- as.data.frame(as.matrix(yBookFirm[PERIOD.XTS]))
 # yPERIOD.XTS <- paste(substr(PERIOD.XTS,1,4),substr(PERIOD.XTS,9,12), sep="/")
 # yBookFirm            <- yBookFirm[yPERIOD.XTS]
 
-filterPositiveBook <- function(Sample, Book) {
-    ##
-    ## Filtrar apenas ações com patrimonio liquido positivo
-    ##
-    for ( i in 2:nrow(Sample)) {
-        Sample[i,][( Book[(i-1),]<=0 | is.na(Book[(i-1),]) )] <- 0
-    }
-    #Sample[Book<=0 | is.na(Book)] <- 0
-    #print("under construction")
-    return(Sample)
-}
-
-
 ySample4 <- filterPositiveBook(ySample2, yBookFirm) * ySample3
 sampleReport(ySample0,ySample4)
 # OBS.: AMOSTRA INICIAL MENOR DO QUE A DE M&O(2011), E A FINAL MAIOR
@@ -422,15 +441,7 @@ sampleReport(ySample0,ySample4)
 # ySamplePositiveBook[ yBookFirm < 0    ] <- 0
 
 # === Final Sample === ========================================================
-# --- FINAL SAMPLE --- --------------------------------------------------------
 
-asLogicalDataFrame <- function (df) {
-    dfOut <- apply(df, 1, function(x) as.logical(x) )
-    dfOut <- as.data.frame(t(dfOut))
-    rownames(dfOut) <- rownames(df)
-    colnames(dfOut) <- colnames(df)
-    return(dfOut)
-}
 ySample <- asLogicalDataFrame(ySample4)
 
 # # Compute all the filters together

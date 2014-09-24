@@ -609,7 +609,6 @@ Sent <- PCAstep3$x[,"PC1"]
 ##       portfolioAssetesInteracao = portfolioAssets1 x portfolioAssets2
 ## 4.3 Retorno das Carteiras
 ##       portfolioSerie - retorna ...
-## 4.  PORTFOLIOS ## ##########################################################
 ## 4.1 Construcao (MM utilizou 5 carteiras)
 ## 4.1.1 portfolioRange
 ## 3.1.2 portfolioAssets (cria_matriz_carteira - retorna dCriterio)
@@ -627,7 +626,7 @@ Sent <- PCAstep3$x[,"PC1"]
 mPrices.xts <- as.xts(mPrices)
 mReturns <- diff(log(mPrices.xts), lag=1) # Compute Logarithmic Returns
 
-# === TAMANHO === =============================================================
+#== TAMANHO === =============================================================
 
 yMVfirmJun <- cleanData(yMVfirmJun, ySample)
 
@@ -661,7 +660,7 @@ data.frame(P1=c(mean(PS5.1r$rVW, na.rm=T),sd(PS5.1r$rVW, na.rm=T))*100,
 
 rm(list=ls(pattern= "PS5.", all.names = TRUE))
 
-# --- Testando c/ MV class ----------------------------------------------------
+#--- Testando c/ MV class ----------------------------------------------------
 # Cria matriz apenas com os valores de Dez e apenas com valores de Jun
 yMVclassJun <- mMVclass[(months(as.Date(rownames(mMVclass)), T)=="jun"),]
 # yMVclassDez <- mMVclass[(months(as.Date(rownames(mMVclass)), T)=="dez"),]
@@ -688,7 +687,7 @@ data.frame(P1=c(mean(PS5.1r$rVW, na.rm=T),sd(PS5.1r$rVW, na.rm=T))*100,
 
 # /// THE END ///
 
-# === LIQUIDEZ === ============================================================
+#== LIQUIDEZ === ============================================================
 
 # Valor de Mercado da Classe para ponderacao
 mVolume <- read.table ("Input/mVolume.csv", header = T, sep=";", dec=",",
@@ -697,7 +696,8 @@ rownames(mVolume)  <- as.Date(rownames(mVolume),"%d/%m/%Y")
 
 # Filtrando Periodo
 mVolume.xts <- as.xts(mVolume, descr='Volume em Reais')[PERIOD.XTS]
-yVolume     <- apply.yearly(mVolume.xts, mean)
+# yVolume     <- apply.yearly(mVolume.xts, mean)
+yVolume     <- apply.yearly(mVolume.xts, last)
 mVolume     <- data.frame(as.matrix(mVolume.xts)) ; rm(mVolume.xts)
 
 yVolume            <- cleanData(yVolume,    ySample)
@@ -722,7 +722,7 @@ data.frame(P1=c(mean(PL5.1r$rVW, na.rm=T),sd(PL5.1r$rVW, na.rm=T))*100,
 
 rm(list=ls(pattern= "PL5.", all.names = TRUE))
 
-# === BM === ==================================================================
+#== BM === ==================================================================
 # TO DO: Calcular BM da classe
 
 yBM <- yBookFirm / yMVfirmDez
@@ -747,7 +747,7 @@ data.frame(P1=c(mean(PB5.1r$rVW, na.rm=T),sd(PB5.1r$rVW, na.rm=T))*100,
 
 rm(list=ls(pattern= "PB5.", all.names = TRUE))
 
-# === MOMENTO === =============================================================
+#== MOMENTO === =============================================================
 
 yReturns <- period.apply(mReturns,endpoints(mVolume,'years'), sum)
 yReturns <- apply.yearly(mReturns, mean)
@@ -773,7 +773,7 @@ data.frame(P1=c(mean(PL5.1r$rVW, na.rm=T),sd(PL5.1r$rVW, na.rm=T))*100,
 
 rm(list=ls(pattern= "PL5.", all.names = TRUE))
 
-# === Returns === =============================================================
+#== Returns === =============================================================
 
 # Compute Returns
 # tempPrices  <- importaBaseCSV("Input/mPrices.csv", (START-31), END)

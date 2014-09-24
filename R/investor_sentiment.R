@@ -29,6 +29,221 @@
 if ( !( "xts" %in% installed.packages() ) ) { install.packages("xts") }
 library(xts)
 
+# --- Portfolio Functions --- -------------------------------------------------
+
+`%between%` <- function(x,rng) {
+    
+    # FUNÇÃO QUE VERIFICA SE UM VALOR ESTÁ ENTRE OS EXTREMOS DE UMA
+    # SÉRIE
+    # ______________________________________________________________
+    # INPUT:
+    #
+    # x ...... Valor de interesse
+    # rng .... Vetor com a série ou os extremos
+    #
+    # Sintaxe: x %between% rng
+    #
+    # ______________________________________________________________
+    
+    x <= max(rng,na.rm = TRUE) & x >= min(rng,na.rm = TRUE)
+    
+    # ______________________________________________________________
+    # OUTPUT: Valor lógico
+    # ______________________________________________________________
+}
+
+portfolioSelectAssets <- function (V, nPort, iPort, report=F) {
+    
+    ## DESCRICAO: Calcula a faixa de valor da variavel de interesse para formar
+    ## um portfolio.
+    ##
+    ## ARGUMENTOS:
+    ## V     ... Variavel de Interesse(criterio/caracteristica).
+    ## nPort ... Número de portfolios
+    ## iPort ... Portfolio de interesse
+    ##
+    
+    V <- as.data.frame(V)
+    dfV <- data.frame(row.names=c("MIN", "MAX"))
+    for ( i in 1:nrow(V)) {
+        
+        # Calculando Faixa de Valores da Variavel de Interesse
+        x <- c(0,seq(1:nPort)/nPort) # Sequencia de todos os quantis
+        RANGE <- quantile(V[i,], x[iPort:(iPort+1)], na.rm=T) # Valor max e min
+        YEAR  <- substr(rownames(as.data.frame(V)[i,]), 1, 4)
+        if ( !is.na(RANGE[1]) ) {
+            dfV <- (cbind(dfV, RANGE))
+            # Selecionando ativos que estao na faixa de interesse naquele ano
+            dCriterio <- V[i,] %between% RANGE
+            dCriterio[is.na(dCriterio)] <- FALSE
+            
+            # ADICIONAR A UM DATA FRAME
+            if ( !exists("dCriterioMatrix") ) {
+                # SE FOR A TABELA NAO EXISTE, CRIA
+                dCriterioMatrix <- V[1,]
+                dCriterioMatrix[!is.na(dCriterioMatrix)] <- NA
+                dCriterioMatrix <- dCriterio
+            } else { # SE EXISTE, APENAS ADICIONAR LINHAS
+                dCriterioMatrix <- rbind(dCriterioMatrix,
+                                         dCriterio)
+            }
+        }
+    }
+    #rownames(dfV) <- substr(rownames(V), 1, 4)
+    
+    if ( report == T ) {
+        colnames(dfV) <- substr(rownames(as.data.frame(V)), 1, 4)[1:ncol(dfV)]
+        dfV <- rbind(dfV,QTD=rowSums(dCriterioMatrix))
+        cat(paste(iPort,"º portfolio dos ", nPort,".\n", sep=""))
+        print(t(as.matrix(dfV)))
+    }
+    
+    #     dCriterioMatrix[is.na(dCriterioMatrix)] <- 0
+    
+    #     # Transformar data (exemplo "1995-06-01" para "1995")
+    #     rownames(dCriterioMatrix) <- substr(rownames(dCriterioMatrix), 1, 4)
+    
+    return(as.data.frame(dCriterioMatrix))
+    # Anotações:
+    # constructPortfolio <- function (strategy, nPortfolios, iPortfolio) {}
+    # rebalancedPortfolios <- function ()
+    # SelectStockBaskets <- function (strategy, nPort, iPort) {}
+}
+
+portfolioSerie  <- function (Return, MV, A, report=FALSE) {
+    
+    # INPUT
+    # _________________________________________________________________
+    #
+    # Return .... Matriz de Retornos (Returns)
+    # MV ... Matriz com os Valores de Mercado (MarketValues)
+    # A .... Matriz de ativos pertecentes ao Portfolio (SelectedStocks)
+    # _________________________________________________________________
+    
+    # Criando Matriz Indice de Data
+    createDateIndex <- function() {
+        # Função que cria índice de data
+        # Criando de uma matriz mapa de datas
+        matriz_indice <- data.frame(Date=seq(from=START,to=END,by="month"))
+        
+        matriz_indice <- cbind(matriz_indice,
+                               M=as.numeric(substr(as.character(matriz_indice$Date),6,7)),
+                               Y=as.numeric(substr(as.character(matriz_indice$Date),1,4)),
+                               Q=as.numeric(substr(quarters(matriz_indice$Date),2,2))
+        )
+        matriz_indice <- cbind(matriz_indice,
+                               Quarter=paste(matriz_indice$Q, "T", matriz_indice$Y, sep = ""),
+                               nM = seq(1:length(matriz_indice$Date)),
+                               nY = matriz_indice$Y+1-as.numeric(substr(as.character(START),1,4)),
+                               nQ = sort(rep(1:ceiling(nrow(matriz_indice)/4),4))[1:nrow(matriz_indice)]
+        )
+        # inidice para selecao dos ativos do portfolio
+        j2   <- matriz_indice$nM[matriz_indice$M==7][2] # Segundo julho da amostra
+        Pn   <- sort(rep(1:ceiling(nrow(matriz_indice)/12),12))[1:nrow(matriz_indice)]
+        Pn_1 <- c(rep(NA, j2-1), Pn[(1:(nrow(matriz_indice)-j2+1))] ) # n-1
+        Pn0  <- Pn_1 + 1 # Indice p/ dados em n
+        Pn   <- Pn0
+        matriz_indice <- cbind(matriz_indice, Pn, Pn0, Pn_1)
+        return(matriz_indice)
+    }
+    dateIndex <- createDateIndex()
+    
+    n <- dateIndex$nM[dateIndex$M==7][2] # Segundo julho da amostra
+    # sort(dateIndex$nM[(dateIndex$M==5)], decreasing=T)[2] # Penultimo maio
+    N <- nrow(Return)
+    
+    # Verificar se matriz A é com base em dados anteriores a jun (mes 6)
+    if ( as.numeric(substr(rownames(A)[2], 6, 7)) <= 6 ) {
+        # Baseado no ano n
+        dateIndex$Pn <- dateIndex$Pn0
+    } else {
+        # Baseado no ano n-1
+        dateIndex$Pn <- dateIndex$Pn_1        
+    }
+    
+    Return <- as.matrix(Return) # Transformando numa matriz pra subset
+    
+    for (i in n:N) {
+        if ( dateIndex$Pn[i] <= nrow(A) ) {
+            
+            # Cria vetor que diz qual ativo pertence à carteira
+            ASSETS <- as.logical(A[dateIndex$Pn[i],])
+            
+            # Valor de Mercado total dos ativos da carteira
+            marketVALUE  <- sum(MV[i,ASSETS], na.rm=T)
+            
+            # Quantidade de ativos na carteira
+            nA  <- sum(as.numeric(ASSETS))
+            
+            # Media igualmente ponderada do retorno dos ativos da carteira
+            rEW <- mean(Return[i,ASSETS], na.rm=T)
+            
+            # Media ponderada pelo valor do retorno dos ativos da carteira
+            rVW <- sum (Return[i,ASSETS] * MV[i,ASSETS] / marketVALUE, na.rm=T)
+            
+        } else {
+            # Valores n existem
+            marketVALUE  <- NA
+            nA           <- NA
+            rEW          <- NA
+            rVW          <- NA
+            
+        }
+        if ( !exists("pSerie") ) {
+            # SE FOR A TABELA NAO EXISTE, CRIA
+            pSerie <- data.frame(rEW=rEW,
+                                 rVW=rVW,
+                                 MV=marketVALUE,
+                                 nA=nA)
+        } else { # SE EXISTE, APENAS ADICIONAR LINHAS
+            pSerie <- rbind(pSerie,c(rEW,
+                                     rVW,
+                                     marketVALUE,
+                                     nA))
+        }
+    }
+    
+    # ______________________________________________________________
+    #
+    #  OUTPUT
+    # ______________________________________________________________
+    #
+    # rEW ... Série de retornos igualmente ponderado
+    # rVW ... Série de retornos ponderado pelo valor
+    # MV .... Valor de Mercado da carteira no período
+    # nA .... Número de ativos da carteira no período
+    # ______________________________________________________________
+    
+    rowNames <- rownames(as.data.frame(Return))[n:N]
+    rownames(pSerie) <- rowNames
+    if ( report == T ) { print(summary(pSerie)) }
+    return(pSerie)
+}
+
+#---- allQuintiles --- --- ---
+# allQuintiles <- function (V, nPort, R, MV) {
+#     
+#     ## ______________________________________________________________
+#     ##
+#     ## Imprime Média e Retorna a Série de todos os Portfolios
+#     ##
+#     ## ARGUMENTS:
+#     ## V     ... Variavel de Interesse(criterio/caracteristica).
+#     ## nPort ... Número de portfolios
+#     ## R ....... Matriz de Retornos
+#     ## MV ...... Matriz com os Valores de Mercado
+#     ## ______________________________________________________________
+#     for ( i in 1:nPort ) {
+#         portfolioSerie(R, MV, portfolioSelectAssets(V, nPort, i))
+#     }
+#     ## imprimir valores medios e desvio padrão
+# }
+
+# ---- LongShortSeries --- --- ---
+# LongShortSeries    <- function (strategy, nPortfolios, RET, MV) {
+#      cat("rLong, mvLong, rShort, mvShort")
+# }
+
 ## Definindo Parametros / Setting Parameters
 
 # === PARAMETROS === ==========================================================

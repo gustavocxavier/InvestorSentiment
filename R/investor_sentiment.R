@@ -20,7 +20,7 @@
 ##
 
 ## COISAS PRA FAZER AINDA ### #################################################
-## - Indice de Sentimento Calculado no R
+## - Indice de Sentimento totalmente Calculado no R
 ## - VM Empresa qnd ON e PN / VM Classe qnd so uma classe na amostra
 ## - Funcao p/ retornar todos os portfolios de uma vez allPortfoliosSeries
 ## - Funcao LongShortSeries
@@ -375,7 +375,7 @@ PERIOD.XTS   <- "2000-06/2014-07"
 ## Get Data and Clean
 ## Carregar e limpar dados
 
-#== 2.1 Read Data = ===========================================================
+#== 2.1 Read Data = ==========================================================
 
 # Carregando matriz de precos / Stock Prices
 mPrices            <- read.table ("Input/mPrices.csv", header = T, sep=";",
@@ -395,12 +395,12 @@ ySample0                  <- as.matrix(apply.yearly(as.xts(mSample0), mean))
 rm(mSample0)
 ySample0[ySample0>0]      <- 1
 
-# --- FILTRO EMPRESAS NAO FINANCEIRAS --- -------------------------------------
+#   2.2.1 Filtro de Empresas Nao Financeiras - --------------------------------
 
 ySample1 <- filterNoFinancial(ySample0, "Input/dbStocks.csv")
 sampleReport(ySample0, ySample1)
 
-# --- FILTRO DE 24 MESES --- --------------------------------------------------
+#   2.2.2 FILTRO DE 24 MESES --- --------------------------------------------------
 
 ySample2 <- filterNo24months(mPrices, ySample0) * ySample1
 sampleReport(ySample0, ySample2)
@@ -483,7 +483,7 @@ ySample <- asLogicalDataFrame(ySample4)
 ## 3.2. Índice de Sentimento não Ortogonalizado
 ## 3.3. Índice de Sentimento Ortogonalizado à variáveis macroeconômicas  
 
-# === Read/Compute Proxies === ===============================================
+#== 3.1 Read/Compute Proxies === ===============================================
 
 mProxies   <- read.table ("Input/mProxies.csv",          # Read data
                           header = T, sep=";", dec=",",
@@ -497,7 +497,7 @@ mProxies <- mProxies[!is.na(mProxies$NIPO_lagged),]
 #as.dist(round(cor(mProxies, use="na.or.complete"),2))    # Correlations s/ NA
 as.dist(round(cor(mProxies, use="everything"),2))       # Correlations c/ Na
 
-# === First Step === ==========================================================
+#== 3.2 First Step ============================================================
 # Estimating first component of all proxies and their lags and choose the best
 
 PCAstep1 <- prcomp(mProxies, scale=T)
@@ -508,7 +508,7 @@ colnames(mBestProxies)                            # Best proxies
 round(cor(PCAstep1$x[,"PC1"],mBestProxies),2)     # Correlation with PC1
 as.dist(round(cor(mBestProxies),2))               # Correlations between them
 
-# === Second Step === =========================================================
+#== 3.3 Second Step === =========================================================
 # Estimating first component of the best proxies
 
 PCAstep2 <-prcomp(mBestProxies, scale=T)
@@ -585,6 +585,21 @@ Sent <- PCAstep3$x[,"PC1"]
 # cor(PCAstep2$x[,"PC1"],PCAstep3$x[,"PC1"])           # Correlação do Indice da 3ª etapa com o da 2ª etapa
 # summary(PCAstep3)                                    # Percentual explicado da variancia
 # PCAstep3$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Ortogonalizado
+
+# ## 4. INVESTOR SENTIMENT AND ANOMALIES ## 
+# ## Sentimento do Investidor e Anomalias
+# ## 4.1. Análise das Médias após períodos de Sentimento Alto e Baixo
+# ## 4.2. Modelos Econométricos
+# ## 4.1 Extremos e sentimento defasado
+# ## 4.2 Extremos, sentimeto defasado e fatores de risco
+# ## 4.3 Extremos, dummys
+# 
+# # TESTE INDICE
+# LAG <- 12
+# summary(lm(seriePortBM1$rVW[(1+LAG):156]  ~ PCAstep3$x[,"PC1"][1:(156-LAG)]))
+# length(seriePortBM1$rVW[13:156])
+# length(PCAstep3$x[,"PC1"][1:144])
+
 
 ## 4. CONSTRUCT PORTFOLIOS ## #################################################
 ## 4. Portfolios
@@ -706,8 +721,6 @@ data.frame(P1=c(mean(PL5.1r$rVW, na.rm=T),sd(PL5.1r$rVW, na.rm=T))*100,
            row.names=c("r","DP"))
 
 rm(list=ls(pattern= "PL5.", all.names = TRUE))
-
-# NAO DEEU!!!
 
 # === BM === ==================================================================
 # TO DO: Calcular BM da classe
@@ -917,8 +930,14 @@ rm(list=ls(pattern= "PL5.", all.names = TRUE))
 #
 #
 
+## 5. PRICING MODELS ## #######################################################
+## 5.1 Ativos Livre de Risco
+## 5.2 Carteiras de Mercado
+## 5.3 Fator Tamanho
+## 5.4 Fator BM
+## 5.5 Outros fatores
 
-# # ### PRICING MODEL ### #######################################################
+# # ### PRICING MODEL ### 
 # 
 # # szS szB bmH bmN bmL SH SN SL BN BL
 # AssetsSize_S <- portfolioAssets2(yMV,2,1)  # Small
@@ -981,67 +1000,62 @@ rm(list=ls(pattern= "PL5.", all.names = TRUE))
 # 
 # seriePortBM1 <- portfolioSerie(mReturns, mMVclass, portfolioAssets2(yBM,5,1))
 # 
-# ## 4. INVESTOR SENTIMENT AND ANOMALIES ## #####################################
-# ## Sentimento do Investidor e Anomalias
-# ## 4.1. Análise das Médias após períodos de Sentimento Alto e Baixo
-# ## 4.2. Modelos Econométricos
-# ## 4.1 Extremos e sentimento defasado
-# ## 4.2 Extremos, sentimeto defasado e fatores de risco
-# ## 4.3 Extremos, dummys
-# 
-# # TESTE INDICE
-# LAG <- 12
-# summary(lm(seriePortBM1$rVW[(1+LAG):156]  ~ PCAstep3$x[,"PC1"][1:(156-LAG)]))
-# length(seriePortBM1$rVW[13:156])
-# length(PCAstep3$x[,"PC1"][1:144])
 
 
-## PRICING MODEL ## ###########################################################
-## 3. Fatores de Risco
-## 3.1 Fator de Mercado
-## 3.2 Construir Carteiras
-## 3.3 Interagir Carteiras
-## 3.4 Retorno das Carteiras Ponderado pelo Valor
+## 6. INVESTOR SENTIMENT AND ANOMALIES ## #####################################
+##    Sentimento do Investidor e Anomalias
+##
+## 6.1. Análise das Médias após períodos de Sentimento Alto e Baixo
+## 6.2. Modelos Econométricos
+## 6.2.1 Extremos e sentimento defasado
+## 6.2.2 Extremos, sentimeto defasado e fatores de risco
+## 6.2.3 Extremos, dummys
 
+#== 6.1 Análise de Médias = ===================================================
 
-## 4. INVESTOR SENTIMENT AND ANOMALIES ## #####################################
-## Sentimento do Investidor e Anomalias
-## 4.1. Análise das Médias após períodos de Sentimento Alto e Baixo
-## 4.2. Modelos Econométricos
-## 4.1 Extremos e sentimento defasado
-## 4.2 Extremos, sentimeto defasado e fatores de risco
-## 4.3 Extremos, dummys
+#== 6.2 Predictive Regressions = ==============================================
 
-# === Análise de Médias === ===================================================
+#   6.2.1 Sentiment and Returns - ---------------------------------------------
 
-# === Predictive Regressions === ==============================================
+# Sent.Long.Beta        <- lm(Long.Beta  ~ SENT[_n-1])
+# Sent.Short.Beta       <- lm(Short.Beta ~ SENT[_n-1])
+# Sent.Long.Size        <- lm(Long.Size  ~ SENT[_n-1])
+# Sent.Short.Size       <- lm(Short.Size ~ SENT[_n-1])
+# Sent.Long.Liquidity   <- lm(Long.Liquidity  ~ SENT[_n-1])
+# Sent.Short.Liquidity  <- lm(Short.Liquidity ~ SENT[_n-1])
+# Sent.Long.BM          <- lm(Long.BM  ~ SENT[_n-1])
+# Sent.Short.BM         <- lm(Short.BM ~ SENT[_n-1])
 
-# Sent.Long.Beta   <- lm(Long.Beta  ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
-# Sent.Short.Beta  <- lm(Short.Beta ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
-# Dummy.Long.Beta  <- lm(Long.Beta  ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
-# Dummy.Short.Beta <- lm(Short.Beta ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
-# 
-# Sent.Long.Size   <- lm(Long.Size  ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
-# Sent.Short.Size  <- lm(Short.Size ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
-# Dummy.Long.Size  <- lm(Long.Size  ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
-# Dummy.Short.Size <- lm(Short.Size ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
-# 
-# Sent.Long.BM   <- lm(Long.BM  ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
-# Sent.Short.BM  <- lm(Short.BM ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
-# Dummy.Long.BM  <- lm(Long.BM  ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
-# Dummy.Short.BM <- lm(Short.BM ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
-# 
+#   6.2.2 Sentiment and Pricing Models - --------------------------------------
+
+# Sent.Long.Beta        <- lm(Long.Beta  ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
+# Sent.Short.Beta       <- lm(Short.Beta ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
+# Sent.Long.Size        <- lm(Long.Size  ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
+# Sent.Short.Size       <- lm(Short.Size ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
 # Sent.Long.Liquidity   <- lm(Long.Liquidity  ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
 # Sent.Short.Liquidity  <- lm(Short.Liquidity ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
+# Sent.Long.BM          <- lm(Long.BM  ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
+# Sent.Short.BM         <- lm(Short.BM ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
+
+#   6.2.2 Sentiment High and Low - --------------------------------------------
+
+# Dummy.Long.Beta       <- lm(Long.Beta  ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
+# Dummy.Short.Beta      <- lm(Short.Beta ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
+# Dummy.Long.BM         <- lm(Long.BM  ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
+# Dummy.Short.BM        <- lm(Short.BM ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
+# Dummy.Long.Size       <- lm(Long.Size  ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
+# Dummy.Short.Size      <- lm(Short.Size ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
 # Dummy.Long.Liquidity  <- lm(Long.Liquidity  ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
 # Dummy.Short.Liquidity <- lm(Short.Liquidity ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
 
 # --- ANOTAÇÕES --- -----------------------------------------------------------
+
+### Teste replicação M&O (2011)
 # OK 1 - tratar amostra
 # OK 2 - calcular retornos
 # OK 3 - Calcular 5 carteiras p/ cada anomalia MOM, SIZ, LIQ
-#         Rebalanceamento: em JUNHO de acordo com variavel de interesse
-#         * Todos retornos mensais ponderado pelo valor de mercado
+# OK      Rebalanceamento: em JUNHO de acordo com variavel de interesse
+# OK      * Todos retornos mensais ponderado pelo valor de mercado
 #         Primeiras Anomalias: MOM, SIZ, LIQ (Depois BM, FC/P, L/P, ALAV)
 #         ANALIZAR RETORNO MÉDIO COM TRABALHO DE MM
 # OK 4 - Calcular BM (simples)
@@ -1055,9 +1069,7 @@ rm(list=ls(pattern= "PL5.", all.names = TRUE))
 # 10- Fazer todos os fatores juntos
 #         Calcular Série LIQ
 #         Calcular Série MOM
-# === === === === ===
-## Anotações:
-##   - variavel de interesse = criterio = estrategia
-##   - Fazer rotina p/ computar proxies
-## Teste replicação Marcio Machado
-# -----------------------------------------------------------------------------
+
+### Outras informacoes:
+# variavel de interesse = criterio = estrategia
+#

@@ -696,7 +696,6 @@ rownames(mVolume)  <- as.Date(rownames(mVolume),"%d/%m/%Y")
 
 # Filtrando Periodo
 mVolume.xts <- as.xts(mVolume, descr='Volume em Reais')[PERIOD.XTS]
-# yVolume     <- apply.yearly(mVolume.xts, mean)
 yVolume     <- apply.yearly(mVolume.xts, last)
 mVolume     <- data.frame(as.matrix(mVolume.xts)) ; rm(mVolume.xts)
 

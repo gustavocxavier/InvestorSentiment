@@ -109,6 +109,34 @@ asLogicalDataFrame <- function (df) {
 
 # --- Sentiment Functions --- -------------------------------------------------
 
+chooseLAG <- function (m) {
+    
+    # FUNCTION TO CHOOSE THE BEST CORRELATION BETWEEN THE EACH CURRENT AND
+    # LAGGED PROXIES
+    # ______________________________________________________________
+    # INPUT:
+    #
+    # m ...... Proxies Data
+    #
+    # ______________________________________________________________
+    
+    nproxies <- ncol(m)
+    i <- 1
+    delete <- 0
+    for ( i in 1:(nproxies/2) ) {
+        proxy <- cor(PCAstep1$x[,"PC1"],m)[i]
+        proxy_lagged <- cor(PCAstep1$x[,"PC1"],m)[i+(nproxies/2)]
+        if ( abs(proxy) < abs(proxy_lagged) ) { delete <- c(delete,-1*i) }
+        if ( abs(proxy) > abs(proxy_lagged) ) { delete <- c(delete,-1*(i+(nproxies/2))) }
+    }
+    delete <- delete[-1]
+    return(m[delete])
+    
+    # ______________________________________________________________
+    # OUTPUT: data.frame/matrix just with the best proxies
+    # ______________________________________________________________
+}
+
 # --- Portfolio Functions --- -------------------------------------------------
 
 `%between%` <- function(x,rng) {
@@ -454,7 +482,6 @@ ySample <- asLogicalDataFrame(ySample4)
 #                                       nrow(mPrices)-nrow(mSample)), ])
 # row.names(mSample) <- row.names(mPrices) # Set name of the rows equal mPrices
 
-
 ## 2. INVESTOR SENTIMENT INDEX ## #############################################
 ## 2. Índice de Sentimento
 ## 2.1. Temporalidade das Proxies: Selecionar proxies que serão defasadas
@@ -474,34 +501,6 @@ as.dist(round(cor(mProxies),2))                          # Correlations
 # Estimating first component of all proxies and their lags and choose the best
 
 PCAstep1 <- prcomp(mProxies, scale=T)
-
-chooseLAG <- function (m) {
-    
-    # FUNCTION TO CHOOSE THE BEST CORRELATION BETWEEN THE EACH CURRENT AND
-    # LAGGED PROXIES
-    # ______________________________________________________________
-    # INPUT:
-    #
-    # m ...... Proxies Data
-    #
-    # ______________________________________________________________
-
-    nproxies <- ncol(m)
-    i <- 1
-    delete <- 0
-    for ( i in 1:(nproxies/2) ) {
-        proxy <- cor(PCAstep1$x[,"PC1"],m)[i]
-        proxy_lagged <- cor(PCAstep1$x[,"PC1"],m)[i+(nproxies/2)]
-        if ( abs(proxy) < abs(proxy_lagged) ) { delete <- c(delete,-1*i) }
-        if ( abs(proxy) > abs(proxy_lagged) ) { delete <- c(delete,-1*(i+(nproxies/2))) }
-    }
-    delete <- delete[-1]
-    return(m[delete])
-    
-    # ______________________________________________________________
-    # OUTPUT: data.frame/matrix just with the best proxies
-    # ______________________________________________________________
-}
 
 round(cor(PCAstep1$x[,"PC1"],mProxies),2)         # The correlations
 mBestProxies <- chooseLAG(mProxies);rm(chooseLAG) # Choosing LAGs...
@@ -590,8 +589,6 @@ Sent <- PCAstep3$x[,"PC1"]
 # cor(PCAstep2$x[,"PC1"],PCAstep3$x[,"PC1"])           # Correlação do Indice da 3ª etapa com o da 2ª etapa
 # summary(PCAstep3)                                    # Percentual explicado da variancia
 # PCAstep3$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Ortogonalizado
-
-
 
 ## 3. CONSTRUCT PORTFOLIOS ## #################################################
 ## 3. Portfolios

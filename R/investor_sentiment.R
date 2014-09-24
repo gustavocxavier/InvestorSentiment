@@ -9,8 +9,7 @@
 # 
 # 0. SETTINGS
 # 0.1 Parameters
-# 0.2 Bibliotecas
-# 0.3 Funcoes
+# 0.2 Bibliotecas e Funcoes
 # 1. GETTING CLEANING DATA
 # 2. INVESTOR SENTIMENT INDEX
 # 3. CONSTRUCT PORTFOLIOS
@@ -25,12 +24,17 @@
 ## - Funcao LongShortSeries
 
 ## 0. SETTINGS ## #############################################################
-## Setting Parameters
-## Definindo Parametros
+## Definindo Parametros / Setting Parameters
 
-# == Date === =================================================================
-START <- as.Date("2001-01-01") # Initial Date
-END   <- as.Date("2013-12-31") # Final Date
+# === PARAMETROS === ==========================================================
+START        <- as.Date("1995-06-01") # Initial Date
+END          <- as.Date("2009-07-31") # Final Date
+PERIOD.XTS   <- "1995-06/2009-07"
+# M&O(2011): jun/95 a jun/08
+
+# === BIBLIOTECAS E FUNCOES === ===============================================
+if ( !( "xts" %in% installed.packages() ) ) { install.packages("xts") }
+library(xts)
 
 ## 1. GETTING CLEANING DATA ## ################################################
 ## Get Data and Clean

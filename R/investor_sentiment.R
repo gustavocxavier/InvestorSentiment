@@ -207,16 +207,26 @@ sampleReport(ySample0,ySample4)
 # ySamplePositiveBook[ yBookFirm < 0    ] <- 0
 
 # === Final Sample === ========================================================
+# --- FINAL SAMPLE --- --------------------------------------------------------
 
-# Compute all the filters together
-ySample <- ySample24m * ySampleNegociab * ySamplePositiveBook
+asLogicalDataFrame <- function (df) {
+    dfOut <- apply(df, 1, function(x) as.logical(x) )
+    dfOut <- as.data.frame(t(dfOut))
+    rownames(dfOut) <- rownames(df)
+    colnames(dfOut) <- colnames(df)
+    return(dfOut)
+}
+ySample <- asLogicalDataFrame(ySample4)
 
-## Generate Yearly Sample Control Matrix
-mSample <- ySample[sort(rep(1:nrow(ySample),12)),] # repeat 12 times the values
-# Add rows to the last incomplete year
-mSample <- rbind(mSample, mSample[rep(nrow(mSample),
-                                      nrow(mPrices)-nrow(mSample)), ])
-row.names(mSample) <- row.names(mPrices) # Set name of the rows equal mPrices
+# # Compute all the filters together
+# ySample <- ySample24m * ySampleNegociab * ySamplePositiveBook
+# 
+# ## Generate Yearly Sample Control Matrix
+# mSample <- ySample[sort(rep(1:nrow(ySample),12)),] # repeat 12 times the values
+# # Add rows to the last incomplete year
+# mSample <- rbind(mSample, mSample[rep(nrow(mSample),
+#                                       nrow(mPrices)-nrow(mSample)), ])
+# row.names(mSample) <- row.names(mPrices) # Set name of the rows equal mPrices
 
 # === Results of Sample === ===================================================
 rowSums(ySample0)#[-1]                # Initial Sample

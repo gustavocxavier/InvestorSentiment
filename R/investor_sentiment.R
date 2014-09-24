@@ -22,7 +22,7 @@
 ## - VM Empresa qnd ON e PN / VM Classe qnd so uma classe na amostra
 ## - Funcao p/ retornar todos os portfolios de uma vez allPortfoliosSeries
 ## - Funcao LongShortSeries
-
+## - FILTRO Bovespa Negociability Index
 ## 0. SETTINGS ## #############################################################
 
 # === BIBLIOTECAS E FUNCOES === ===============================================
@@ -124,14 +124,13 @@ ySample2 <- filterNo24months(mPrices, ySample0) * ySample1
 rm(filterNo24months)
 sampleReport(ySample0, ySample2)
 
-
-
-# Bovespa Negociability Index
-mNegociabilidade <- importaBaseCSV("Input/mNegociabilidade.csv", START, END)
-
-# Convert monthly to yearly
-yNegociabilidade <- mNegociabilidade[dateIndex$M==12,]
-row.names(yNegociabilidade) <- dateIndex$Y[dateIndex$M==12]
+# --- FILTRO Bovespa Negociability Index --- ----------------------------------
+# TODO: FILTRO Bovespa Negociability Index
+# mNegociabilidade <- importaBaseCSV("Input/mNegociabilidade.csv", START, END)
+# 
+# # Convert monthly to yearly
+# yNegociabilidade <- mNegociabilidade[dateIndex$M==12,]
+# row.names(yNegociabilidade) <- dateIndex$Y[dateIndex$M==12]
 
 # Liquidity filter by negociability index
 ySampleNegociab <- ySample0

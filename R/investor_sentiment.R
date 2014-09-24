@@ -131,18 +131,80 @@ sampleReport(ySample0, ySample2)
 # # Convert monthly to yearly
 # yNegociabilidade <- mNegociabilidade[dateIndex$M==12,]
 # row.names(yNegociabilidade) <- dateIndex$Y[dateIndex$M==12]
+# 
+# # Liquidity filter by negociability index
+# ySampleNegociab <- ySample0
+# ySampleNegociab[yNegociabilidade <= 0.01] <- 0
 
-# Liquidity filter by negociability index
-ySampleNegociab <- ySample0
-ySampleNegociab[yNegociabilidade <= 0.01] <- 0
+# --- FILTRO VALOR DE MERCADO EM 30/06 e 31/12 --- ----------------------------
 
-# Read Book Value
-yBookFirm <- importaBaseCSV("Input/yBookFirm.csv", START, END, formato="%Y")
+# Read Market Value of the Firm
+mMVfirm <- read.table ("Input/mMarketValueFirm.csv", header = T, sep=";", dec=",",
+                       skip=1, row.names=1, na.strings="-", stringsAsFactors=F)
+rownames(mMVfirm) <- as.Date(rownames(mMVfirm),"%d/%m/%Y")
 
-# Positive Book Value Filter
-ySamplePositiveBook <- ySample0
-ySamplePositiveBook[ is.na(yBookFirm) ] <- 0
-ySamplePositiveBook[ yBookFirm < 0    ] <- 0
+# Filtrando Periodo
+mMVfirm.xts <- as.xts(mMVfirm)[PERIOD.XTS]
+mMVfirm     <- data.frame(as.matrix(mMVfirm.xts)); rm(mMVfirm.xts)
+
+# Cria matriz apenas com os valores de Dez e apenas com valores de Jun
+yMVfirmJun <- mMVfirm[(months(as.Date(rownames(mMVfirm)), T)=="jun"),]
+yMVfirmDez <- mMVfirm[(months(as.Date(rownames(mMVfirm)), T)=="dez"),]
+
+ySample3 <- ySample2 # Cria matriz de controle da amostra a partir da ultima
+ySample3[!is.na(ySample3)] <- 1 # Atribui temporariamente 1 a todos os campos
+
+# Atribui 0 para os valores que nao satisfazem a condicao desejada em dez/n-1
+ySample3[-1,][yMVfirmDez <= 0]   <- 0 # Valores zerados em dez/n-1 na base
+ySample3[-1,][is.na(yMVfirmDez)] <- 0 # Valores invexistentes em dez/n-1 na base
+
+# Atribui 0 para os valores que nao satisfazem a condicao desejada em jun/n
+ySample3[(yMVfirmJun <= 0)] <- 0 # Valores zerados em jun na base
+ySample3[is.na(yMVfirmJun)] <- 0 # Valores invexistentes em jun na base
+
+ySample3 <- ySample3 * ySample2 # Interagem com atendem ao filtro anterior
+
+sampleReport(ySample0, ySample3)
+
+# --- FILTRO DE PATRIMONIO LIQUIDO --- ----------------------------------------
+
+yBookFirm <- read.table ("Input/yBookFirm.csv", header = T, sep=";",
+                         dec=",", skip=0,
+                         row.names=1, na.strings="-", stringsAsFactors=F)
+row.names(yBookFirm) <- as.Date(paste(rownames(yBookFirm),"-12-01", sep=""),
+                                "%Y-%m-%d")
+yBookFirm            <- as.xts(yBookFirm, descr='Patrimonio Liquido')
+yBookFirm            <- as.data.frame(as.matrix(yBookFirm[PERIOD.XTS]))
+
+# Desnecessary code?
+# yPERIOD.XTS <- paste(substr(PERIOD.XTS,1,4),substr(PERIOD.XTS,9,12), sep="/")
+# yBookFirm            <- yBookFirm[yPERIOD.XTS]
+
+filterPositiveBook <- function(Sample, Book) {
+    ##
+    ## Filtrar apenas ações com patrimonio liquido positivo
+    ##
+    for ( i in 2:nrow(Sample)) {
+        Sample[i,][( Book[(i-1),]<=0 | is.na(Book[(i-1),]) )] <- 0
+    }
+    #Sample[Book<=0 | is.na(Book)] <- 0
+    #print("under construction")
+    return(Sample)
+}
+
+
+ySample4 <- filterPositiveBook(ySample2, yBookFirm) * ySample3
+sampleReport(ySample0,ySample4)
+# OBS.: AMOSTRA INICIAL MENOR DO QUE A DE M&O(2011), E A FINAL MAIOR
+
+# Codigo Antigo
+# # Read Book Value
+# yBookFirm <- importaBaseCSV("Input/yBookFirm.csv", START, END, formato="%Y")
+# 
+# # Positive Book Value Filter
+# ySamplePositiveBook <- ySample0
+# ySamplePositiveBook[ is.na(yBookFirm) ] <- 0
+# ySamplePositiveBook[ yBookFirm < 0    ] <- 0
 
 # === Final Sample === ========================================================
 

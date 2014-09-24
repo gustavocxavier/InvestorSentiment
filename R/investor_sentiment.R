@@ -454,31 +454,6 @@ ySample <- asLogicalDataFrame(ySample4)
 #                                       nrow(mPrices)-nrow(mSample)), ])
 # row.names(mSample) <- row.names(mPrices) # Set name of the rows equal mPrices
 
-# === Results of Sample === ===================================================
-rowSums(ySample0)#[-1]                # Initial Sample
-
-rowSums(ySample24m)[-1]          # Just the firms with 24 months of price
-round(rowSums(ySample24m)[-1]/rowSums(ySample0)[-1],2)          # %
-
-rowSums(ySamplePositiveBook)[-1] # Just the Positive book
-round(rowSums(ySamplePositiveBook)[-1]/rowSums(ySample0)[-1],2) # %
-
-rowSums(ySampleNegociab)[-1]     # Just the most liquid
-round(rowSums(ySampleNegociab)[-1]/rowSums(ySample0)[-1],2)     # %
-
-rowSums(ySample)#[-1]             # Final Sample
-round(rowSums(ySample)/rowSums(ySample0),2)             # %
-round(rowSums(ySample)[-1]/rowSums(ySample0)[-1],2)             # %
-
-# The first year was not computed because the 24 months filter
-
-# OK Negociability but not OK 24 months
-rowSums(ySampleNegociab)[-1]-rowSums(ySample24m*ySampleNegociab)[-1]
-
-# OK 24 months but not OK Negociability
-rowSums(ySample24m)[-1]-rowSums(ySample24m*ySampleNegociab)[-1]
-
-
 
 ## 2. INVESTOR SENTIMENT INDEX ## #############################################
 ## 2. Índice de Sentimento

@@ -8,18 +8,19 @@
 # market.                       
 # 
 
+## INDICE #####################################################################
 ## 1.  SETTINGS
 ## 1.1 Install and load packages
 ## 1.2 My Functions
 ## 1.3 My Parameters <-------------- DEFINIR PARAMETROS ANTES DE RODAR O CODIGO
-## 1. GETTING CLEANING DATA
-## 2. INVESTOR SENTIMENT INDEX
-## 3. CONSTRUCT PORTFOLIOS
-## 4. INVESTOR SENTIMENT AND ANOMALIES
+## 2. GET DATA AND CLEAN
+## 3. INVESTOR SENTIMENT INDEX
+## 4. CONSTRUCT PORTFOLIOS
+## 5. PRICING MODELS
+## 6. INVESTOR SENTIMENT AND ANOMALIES
 ##
 
 ## COISAS PRA FAZER AINDA ### #################################################
-## - Organizar Funçoes acima
 ## - Indice de Sentimento Calculado no R
 ## - VM Empresa qnd ON e PN / VM Classe qnd so uma classe na amostra
 ## - Funcao p/ retornar todos os portfolios de uma vez allPortfoliosSeries
@@ -28,13 +29,14 @@
 
 ## 1. SETTINGS ## #############################################################
 
-# === 1.1 Install and load packages === =======================================
+#== 1.1 Install and load packages = ===========================================
+
 if ( !( "xts" %in% installed.packages() ) ) { install.packages("xts") }
 library(xts)
 
-# === 1.2 My Functions === ====================================================
+#== 1.2 My Functions = ========================================================
 
-# --- Data Functions --- ------------------------------------------------------
+#   1.2.1 Data Functions - ------------------------------------------------
 
 filterNoFinancial <- function(Sample, dbFile) {
     # Exclui as empresas financeiras
@@ -107,7 +109,7 @@ asLogicalDataFrame <- function (df) {
     return(dfOut)
 }
 
-# --- Sentiment Functions --- -------------------------------------------------
+# - 1.2.2 Sentiment Functions - -------------------------------------------
 
 chooseLAG <- function (m) {
     
@@ -137,7 +139,7 @@ chooseLAG <- function (m) {
     # ______________________________________________________________
 }
 
-# --- Portfolio Functions --- -------------------------------------------------
+# - 1.2.3 Portfolio Functions - -------------------------------------------
 
 `%between%` <- function(x,rng) {
     
@@ -352,20 +354,28 @@ portfolioSerie  <- function (Return, MV, A, report=FALSE) {
 #      cat("rLong, mvLong, rShort, mvShort")
 # }
 
+cleanData <- function(yData,Sample) {
+    # Atribui NA em todos os valores yData em n-1 qnd Sample em n for FALSE
+    yData[-nrow(yData),][(Sample[-1,]==F)] <- NA
+    # Atribui NA em todos os valores yData no ultimo ano
+    yData[ nrow(yData),] <- NA
+    return(yData)
+}
+
 ## Definindo Parametros / Setting Parameters
 
-# === PARAMETROS === ==========================================================
+# = 1.3 My Parameters = ===================================================
 ## Definindo Parametros / Setting Parameters
 START        <- as.Date("1995-06-01") # Initial Date
 END          <- as.Date("2009-07-31") # Final Date
 PERIOD.XTS   <- "1995-06/2009-07"
 # M&O(2011): jun/95 a jun/08
 
-## 1. GETTING CLEANING DATA ## ################################################
+## 2. GET DATA AND CLEAN ## ###################################################
 ## Get Data and Clean
 ## Carregar e limpar dados
 
-# === Read Data === ===========================================================
+#== 2.1 Read Data = ===========================================================
 
 # Carregando matriz de precos / Stock Prices
 mPrices            <- read.table ("Input/mPrices.csv", header = T, sep=";",
@@ -482,7 +492,7 @@ ySample <- asLogicalDataFrame(ySample4)
 #                                       nrow(mPrices)-nrow(mSample)), ])
 # row.names(mSample) <- row.names(mPrices) # Set name of the rows equal mPrices
 
-## 2. INVESTOR SENTIMENT INDEX ## #############################################
+## 3. INVESTOR SENTIMENT INDEX ## #############################################
 ## 2. Índice de Sentimento
 ## 2.1. Temporalidade das Proxies: Selecionar proxies que serão defasadas
 ## 2.2. Índice de Sentimento não Ortogonalizado
@@ -590,41 +600,33 @@ Sent <- PCAstep3$x[,"PC1"]
 # summary(PCAstep3)                                    # Percentual explicado da variancia
 # PCAstep3$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Ortogonalizado
 
-## 3. CONSTRUCT PORTFOLIOS ## #################################################
-## 3. Portfolios
-## 3.1 Construir Carteiras
+## 4. CONSTRUCT PORTFOLIOS ## #################################################
+## 4. Portfolios
+## 4.1 Construir Carteiras
 ##       portfolioAssets cria_matriz_carteira - retorna dCriterio
-## 3.2 Interação de Carteiras
+## 4.2 Interação de Carteiras
 ##       portfolioAssetesInteracao = portfolioAssets1 x portfolioAssets2
-## 3.3 Retorno das Carteiras
+## 4.3 Retorno das Carteiras
 ##       portfolioSerie - retorna ...
-## 3.  PORTFOLIOS ## ##########################################################
-## 3.1 Construcao (MM utilizou 5 carteiras)
-## 3.1.1 portfolioRange
+## 4.  PORTFOLIOS ## ##########################################################
+## 4.1 Construcao (MM utilizou 5 carteiras)
+## 4.1.1 portfolioRange
 ## 3.1.2 portfolioAssets (cria_matriz_carteira - retorna dCriterio)
-## 3.1.3 portfolioSerie  (rEW, rVW, n, xVM, xC)
+## 4.1.3 portfolioSerie  (rEW, rVW, n, xVM, xC)
 ##       (CALCULAR MOM, SIZ E LIQ E COMPARAR COM MM)
-## 3.2   Pricing Model
-## 3.2.1 Série de Retorno da Carteira de Mercado 
+## 4.2   Pricing Model
+## 4.2.1 Série de Retorno da Carteira de Mercado 
 ##       (COMPARAR COM MM O CAPM)
-## 3.2.2 portfolioAssetesInteracao = portfolioAssets1 x portfolioAssets2
-## 3.2.3 Serie de retorno dos fatores FF (SMB, HML)
+## 4.2.2 portfolioAssetesInteracao = portfolioAssets1 x portfolioAssets2
+## 4.2.3 Serie de retorno dos fatores FF (SMB, HML)
 ##       (COMPARAR BM SIMPLES COM MM, retorno merdio e capm)
 ##       (COMPARAR FF COM MM)
-## 3.2.4 Serie de retorno dos demais fatores (MOM, LIQ)
+## 4.2.4 Serie de retorno dos demais fatores (MOM, LIQ)
 
 mPrices.xts <- as.xts(mPrices)
 mReturns <- diff(log(mPrices.xts), lag=1) # Compute Logarithmic Returns
 
 # === TAMANHO === =============================================================
-
-cleanData <- function(yData,Sample) {
-    # Atribui NA em todos os valores yData em n-1 qnd Sample em n for FALSE
-    yData[-nrow(yData),][(Sample[-1,]==F)] <- NA
-    # Atribui NA em todos os valores yData no ultimo ano
-    yData[ nrow(yData),] <- NA
-    return(yData)
-}
 
 yMVfirmJun <- cleanData(yMVfirmJun, ySample)
 

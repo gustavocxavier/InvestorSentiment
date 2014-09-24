@@ -8,11 +8,21 @@
 # market.                       
 # 
 # 0. SETTINGS
+# 0.1 Parameters
+# 0.2 Bibliotecas
+# 0.3 Funcoes
 # 1. GETTING CLEANING DATA
 # 2. INVESTOR SENTIMENT INDEX
 # 3. CONSTRUCT PORTFOLIOS
 # 4. INVESTOR SENTIMENT AND ANOMALIES
 #
+
+## COISAS PRA FAZER AINDA ### #################################################
+## - Organizar Funçoes acima
+## - Indice de Sentimento Calculado no R
+## - VM Empresa qnd ON e PN / VM Classe qnd so uma classe na amostra
+## - Funcao p/ retornar todos os portfolios de uma vez allPortfoliosSeries
+## - Funcao LongShortSeries
 
 ## 0. SETTINGS ## #############################################################
 ## Setting Parameters
@@ -21,8 +31,6 @@
 # == Date === =================================================================
 START <- as.Date("2001-01-01") # Initial Date
 END   <- as.Date("2013-12-31") # Final Date
-
-
 
 ## 1. GETTING CLEANING DATA ## ################################################
 ## Get Data and Clean

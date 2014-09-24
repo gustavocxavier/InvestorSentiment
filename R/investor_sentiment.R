@@ -1,12 +1,11 @@
-# invSent ## ##################################################################
-# 
-# Title: Investor Sentiment and Anomalies in Brazilian Market
-#
-# Version: 0.0.1
-#
-# Description: Script to compute que Investor Sentiment Index of the brazilian
-# market.                       
-# 
+##
+## Title: Investor Sentiment and Anomalies in Brazilian Market
+##
+## Version: 0.0.1
+##
+## Description: Script to compute que Investor Sentiment Index of the brazilian
+## market.                       
+## 
 
 ## INDICE #####################################################################
 ## 1.  SETTINGS
@@ -37,7 +36,7 @@ library(xts)
 
 #== 1.2 My Functions = ========================================================
 
-#   1.2.1 Data Functions - ------------------------------------------------
+#   1.2.1 Data Functions - ----------------------------------------------------
 
 filterNoFinancial <- function(Sample, dbFile) {
     # Exclui as empresas financeiras
@@ -110,7 +109,7 @@ asLogicalDataFrame <- function (df) {
     return(dfOut)
 }
 
-#   1.2.2 Sentiment Functions - -------------------------------------------
+#   1.2.2 Sentiment Functions - -----------------------------------------------
 
 chooseLAG <- function (m) {
     
@@ -140,7 +139,7 @@ chooseLAG <- function (m) {
     # ______________________________________________________________
 }
 
-#   1.2.3 Portfolio Functions - -------------------------------------------
+#   1.2.3 Portfolio Functions - -----------------------------------------------
 
 `%between%` <- function(x,rng) {
     
@@ -365,14 +364,14 @@ cleanData <- function(yData,Sample) {
 
 ## Definindo Parametros / Setting Parameters
 
-#== 1.3 My Parameters = ===================================================
+#== 1.3 My Parameters = =======================================================
 ## Definindo Parametros / Setting Parameters
 START        <- as.Date("2000-06-01") # Initial Date
 END          <- as.Date("2014-07-31") # Final Date
 PERIOD.XTS   <- "2000-06/2014-07"
 # M&O(2011): jun/95 a jun/08
 
-## 2. GET DATA AND CLEAN ## ###################################################
+## 2. GET DATA AND CLEAN ## ##################################################
 ## Get Data and Clean
 ## Carregar e limpar dados
 
@@ -383,12 +382,11 @@ mPrices            <- read.table ("Input/mPrices.csv", header = T, sep=";",
                                   dec=",", skip=0, row.names=1, na.strings="-",
                                   stringsAsFactors=F)
 row.names(mPrices) <- as.Date(row.names(mPrices), format="%d/%m/%Y")
-
 # Filtrando Periodo
 mPrices.xts        <- as.xts(mPrices, descr="MONTHLY PRICES")[PERIOD.XTS]
 mPrices            <- data.frame(as.matrix(mPrices.xts)) ; rm(mPrices.xts)
 
-# === Initial Sample === ======================================================
+#== 2.2 Initial Sample = ======================================================
 # Initial Sample (1 para todos os anos que houve cotacao)
 mSample0                  <- as.matrix(mPrices)
 mSample0[!is.na(mPrices)] <- 1
@@ -400,7 +398,6 @@ ySample0[ySample0>0]      <- 1
 # --- FILTRO EMPRESAS NAO FINANCEIRAS --- -------------------------------------
 
 ySample1 <- filterNoFinancial(ySample0, "Input/dbStocks.csv")
-
 sampleReport(ySample0, ySample1)
 
 # --- FILTRO DE 24 MESES --- --------------------------------------------------
@@ -430,7 +427,6 @@ rownames(mMVfirm) <- as.Date(rownames(mMVfirm),"%d/%m/%Y")
 # Filtrando Periodo
 mMVfirm.xts <- as.xts(mMVfirm)[PERIOD.XTS]
 mMVfirm     <- data.frame(as.matrix(mMVfirm.xts)); rm(mMVfirm.xts)
-
 # Cria matriz apenas com os valores de Dez e apenas com valores de Jun
 yMVfirmJun <- mMVfirm[(months(as.Date(rownames(mMVfirm)), T)=="jun"),]
 yMVfirmDez <- mMVfirm[(months(as.Date(rownames(mMVfirm)), T)=="dez"),]
@@ -767,129 +763,129 @@ rm(list=ls(pattern= "PL5.", all.names = TRUE))
 # === Returns === =============================================================
 
 # Compute Returns
-tempPrices  <- importaBaseCSV("Input/mPrices.csv", (START-31), END)
-mReturns    <- as.data.frame(diff(log(as.matrix(mPrices)))) ; rm(tempPrices)
-
-# Read Market Value
-mMarketValue     <- importaBaseCSV("Input/mMarketValue.csv",
-                                   START, END, pula_linha=1)
-
-# Convert monthly data to yearly
-yMarketValue <- mMarketValue[dateIndex$M==12,]
-
-yMarketValue[ySample==0]      <- NA
-yMarketValue[yMarketValue==0] <- NA
-yBookFirm[ySample==0]         <- NA
-
-# Compute Book-to-market
-yBM <- yBookFirm / yMarketValue
-length(yBookFirm[yBookFirm==0])
-yBM[yMarketValue==0] <- NA
-yBM[yBM==+Inf]
-sum(yBookFirm==0, na.rm=T)
-sum(yMarketValue==0, na.rm=T)
-sum(yBM<=-Inf, na.rm=T)
-
-head(which(yBookFirm!=0, arr.ind=T))
-yBookFirm[,1:2]
-
-##Teste Range
-portfolioRange(yMarketValue[2,],2,1)
-portfolioRange(yBM,3,1) # Verificar o -Inf e o +Inf
-
-# szS szB bmH bmN bmL SH SN SL BN BL
-AssetsSize_S <- portfolioAssets2(yMarketValue,2,1)  # Small
-AssetsSize_B <- portfolioAssets2(yMarketValue,2,2)  # Big   
-
-AssetsBM_H <- portfolioAssets2(yBM,3,1)             # Value (High BM)
-AssetsBM_N <- portfolioAssets2(yBM,3,2)             # Neutral
-AssetsBM_L <- portfolioAssets2(yBM,3,3)             # Growth (Low BM)
-
-AssetsSH <- AssetsSize_S * AssetsBM_H # Small Value (High BM)
-AssetsSN <- AssetsSize_S * AssetsBM_N # Small Neutral
-AssetsSL <- AssetsSize_S * AssetsBM_L # Small Growth (Low BM)
-AssetsBH <- AssetsSize_B * AssetsBM_H # Big Value (High BM)
-AssetsBN <- AssetsSize_B * AssetsBM_N # Big Neutral
-AssetsBL <- AssetsSize_B * AssetsBM_L # Big Growth (Low BM)
-
-AssetsSH <- apply(AssetsSH, 1, function(x) as.logical(x) ) # Small Neutral
-AssetsSN <- apply(AssetsSN, 2, function(x) as.logical(x) ) # Small Neutral
-AssetsSL <- apply(AssetsSL, 2, function(x) as.logical(x) ) # Small Growth (Low BM)
-AssetsBH <- apply(AssetsBH, 2, function(x) as.logical(x) ) # Big Value (High BM)
-AssetsBN <- apply(AssetsBN, 2, function(x) as.logical(x) ) # Big Neutral
-AssetsBL <- apply(AssetsBL, 2, function(x) as.logical(x) ) # Big Growth (Low BM)
-AssetsSH[1:5,1:5]
-
-rownames(AssetsSH) <- rownames(yBM)
-rownames(AssetsSN) <- rownames(yBM)
-rownames(AssetsSL) <- rownames(yBM)
-rownames(AssetsBH) <- rownames(yBM)
-rownames(AssetsBN) <- rownames(yBM)
-rownames(AssetsBL) <- rownames(yBM)
-
-# ...........................
-
-interactPortfolios <- function (x, y) {
-        # Criando tabela
-        tabela <- x
-        for (i in 1:nrow(tabela)) {
-                tabela[i,] <- as.logical(x[i,] * y[i,])
-        }
-        return(tabela)
-}
-
-C <- A[c(1,2,1,3,5),c(1,2,3,4,5,1)]
-B
-D <- B*C
-apply(D, 2, function(x) as.logical(x) )
-
-# ........ Procurar no stack overflow como transformar data.frame 1 o em logico
-
-# HML = 1/2 (Small Value + Big Value) - 1/2 (Small Growth + Big Growth)
-FactorHML <- 1/2*(AssetsSH)
-
-# SMB = 1/3 (Small Value + Small Neutral + Small Growth)
-#       - 1/3 (Big Value + Big Neutral + Big Growth)
-PortfolioSMB <- 
-        PortfolioHML
-debug(portfolioSerie)
-serieSmallValue <- portfolioSerie(mReturns, mMarketValue,AssetsSH)
-warnings()
-head(AssetsSH[,1:5])
-head(mReturns[,1:5])
-tail(mReturns[,1:5])
-tail(AssetsSH[,1:5])
-
-serieSmallValue <- portfolioSerie(mReturns, mMarketValue,AssetsSH)
-
-seriePortBM1 <- portfolioSerie(mReturns, mMarketValue, portfolioAssets2(yBM,5,1))
-
-# TESTE INDICE
-LAG <- 12
-summary(lm(seriePortBM1$rWV[(1+LAG):156]  ~ PCAstep3$x[,"PC1"][1:(156-LAG)]))
-
-
-length(seriePortBM1$rWV[13:156])
-length(PCAstep3$x[,"PC1"][1:144])
-
-
-# _____________________________________________________________________________
-# TESTE UTILIZANDO DADOS REAIS
-
-nAtivos <- 1108
-
-precins  <- mPrices[12:36,1:nAtivos]
-retornin <- diff(log(as.matrix(precins)))
-valorzin <- mMarketValue[13:36,1:nAtivos]
-criterin <- yBookFirm[1:2,1:nAtivos]
-criterin <- yBookFirm[1:2,1:nAtivos] / valorzin[c(12,24),]
-
-#portfolioAssets2(criterin,3,1)
-#portfolioAssets2(criterin,3,3)
-#portfolioSerie(retornin, valorzin, portfolioAssets2(criterin,5,1))
-
-#rm(list=c("precins", "retornin", "criterin", "valorzin", "nAtivos"))
-
+# tempPrices  <- importaBaseCSV("Input/mPrices.csv", (START-31), END)
+# mReturns    <- as.data.frame(diff(log(as.matrix(mPrices)))) ; rm(tempPrices)
+# 
+# # Read Market Value
+# mMarketValue     <- importaBaseCSV("Input/mMarketValue.csv",
+#                                    START, END, pula_linha=1)
+# 
+# # Convert monthly data to yearly
+# yMarketValue <- mMarketValue[dateIndex$M==12,]
+# 
+# yMarketValue[ySample==0]      <- NA
+# yMarketValue[yMarketValue==0] <- NA
+# yBookFirm[ySample==0]         <- NA
+# 
+# # Compute Book-to-market
+# yBM <- yBookFirm / yMarketValue
+# length(yBookFirm[yBookFirm==0])
+# yBM[yMarketValue==0] <- NA
+# yBM[yBM==+Inf]
+# sum(yBookFirm==0, na.rm=T)
+# sum(yMarketValue==0, na.rm=T)
+# sum(yBM<=-Inf, na.rm=T)
+# 
+# head(which(yBookFirm!=0, arr.ind=T))
+# yBookFirm[,1:2]
+# 
+# ##Teste Range
+# portfolioRange(yMarketValue[2,],2,1)
+# portfolioRange(yBM,3,1) # Verificar o -Inf e o +Inf
+# 
+# # szS szB bmH bmN bmL SH SN SL BN BL
+# AssetsSize_S <- portfolioAssets2(yMarketValue,2,1)  # Small
+# AssetsSize_B <- portfolioAssets2(yMarketValue,2,2)  # Big   
+# 
+# AssetsBM_H <- portfolioAssets2(yBM,3,1)             # Value (High BM)
+# AssetsBM_N <- portfolioAssets2(yBM,3,2)             # Neutral
+# AssetsBM_L <- portfolioAssets2(yBM,3,3)             # Growth (Low BM)
+# 
+# AssetsSH <- AssetsSize_S * AssetsBM_H # Small Value (High BM)
+# AssetsSN <- AssetsSize_S * AssetsBM_N # Small Neutral
+# AssetsSL <- AssetsSize_S * AssetsBM_L # Small Growth (Low BM)
+# AssetsBH <- AssetsSize_B * AssetsBM_H # Big Value (High BM)
+# AssetsBN <- AssetsSize_B * AssetsBM_N # Big Neutral
+# AssetsBL <- AssetsSize_B * AssetsBM_L # Big Growth (Low BM)
+# 
+# AssetsSH <- apply(AssetsSH, 1, function(x) as.logical(x) ) # Small Neutral
+# AssetsSN <- apply(AssetsSN, 2, function(x) as.logical(x) ) # Small Neutral
+# AssetsSL <- apply(AssetsSL, 2, function(x) as.logical(x) ) # Small Growth (Low BM)
+# AssetsBH <- apply(AssetsBH, 2, function(x) as.logical(x) ) # Big Value (High BM)
+# AssetsBN <- apply(AssetsBN, 2, function(x) as.logical(x) ) # Big Neutral
+# AssetsBL <- apply(AssetsBL, 2, function(x) as.logical(x) ) # Big Growth (Low BM)
+# AssetsSH[1:5,1:5]
+# 
+# rownames(AssetsSH) <- rownames(yBM)
+# rownames(AssetsSN) <- rownames(yBM)
+# rownames(AssetsSL) <- rownames(yBM)
+# rownames(AssetsBH) <- rownames(yBM)
+# rownames(AssetsBN) <- rownames(yBM)
+# rownames(AssetsBL) <- rownames(yBM)
+# 
+# # ...........................
+# 
+# interactPortfolios <- function (x, y) {
+#         # Criando tabela
+#         tabela <- x
+#         for (i in 1:nrow(tabela)) {
+#                 tabela[i,] <- as.logical(x[i,] * y[i,])
+#         }
+#         return(tabela)
+# }
+# 
+# C <- A[c(1,2,1,3,5),c(1,2,3,4,5,1)]
+# B
+# D <- B*C
+# apply(D, 2, function(x) as.logical(x) )
+# 
+# # ........ Procurar no stack overflow como transformar data.frame 1 o em logico
+# 
+# # HML = 1/2 (Small Value + Big Value) - 1/2 (Small Growth + Big Growth)
+# FactorHML <- 1/2*(AssetsSH)
+# 
+# # SMB = 1/3 (Small Value + Small Neutral + Small Growth)
+# #       - 1/3 (Big Value + Big Neutral + Big Growth)
+# PortfolioSMB <- 
+#         PortfolioHML
+# debug(portfolioSerie)
+# serieSmallValue <- portfolioSerie(mReturns, mMarketValue,AssetsSH)
+# warnings()
+# head(AssetsSH[,1:5])
+# head(mReturns[,1:5])
+# tail(mReturns[,1:5])
+# tail(AssetsSH[,1:5])
+# 
+# serieSmallValue <- portfolioSerie(mReturns, mMarketValue,AssetsSH)
+# 
+# seriePortBM1 <- portfolioSerie(mReturns, mMarketValue, portfolioAssets2(yBM,5,1))
+# 
+# # TESTE INDICE
+# LAG <- 12
+# summary(lm(seriePortBM1$rWV[(1+LAG):156]  ~ PCAstep3$x[,"PC1"][1:(156-LAG)]))
+# 
+# 
+# length(seriePortBM1$rWV[13:156])
+# length(PCAstep3$x[,"PC1"][1:144])
+# 
+# 
+# # _____________________________________________________________________________
+# # TESTE UTILIZANDO DADOS REAIS
+# 
+# nAtivos <- 1108
+# 
+# precins  <- mPrices[12:36,1:nAtivos]
+# retornin <- diff(log(as.matrix(precins)))
+# valorzin <- mMarketValue[13:36,1:nAtivos]
+# criterin <- yBookFirm[1:2,1:nAtivos]
+# criterin <- yBookFirm[1:2,1:nAtivos] / valorzin[c(12,24),]
+# 
+# #portfolioAssets2(criterin,3,1)
+# #portfolioAssets2(criterin,3,3)
+# #portfolioSerie(retornin, valorzin, portfolioAssets2(criterin,5,1))
+# 
+# #rm(list=c("precins", "retornin", "criterin", "valorzin", "nAtivos"))
+# 
 # ..............................................................................
 # 
 # ..............................................................................
@@ -1064,5 +1060,4 @@ criterin <- yBookFirm[1:2,1:nAtivos] / valorzin[c(12,24),]
 ##   - variavel de interesse = criterio = estrategia
 ##   - Fazer rotina p/ computar proxies
 ## Teste replicação Marcio Machado
-
-# ------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------

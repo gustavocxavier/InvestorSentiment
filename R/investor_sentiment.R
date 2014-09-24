@@ -93,9 +93,38 @@ sampleReport <- function (s0, s1) {
 }
 sampleReport(ySample0, ySample1)
 
-dateIndex <- createDateIndex() # Generate date map matrix for the next cmd
+# --- FILTRO DE 24 MESES --- --------------------------------------------------
 
-ySample24m  <- filter24months(ySample0, mPrices) # Filter of 24 months
+filterNo24months <- function(prices, InitialSample) {
+    # Descrição:
+    #
+    # (-) acoes que n apresentam 24 meses consecutivos
+    # MM: Formação das carteiras em 01/jun
+    # 12 meses antes (jun a mai) e 12 depois (jul a jun)
+    # Fator Momento: retorno de jul/(n-1):mai/(n  ) (11 meses)
+    #                precos  de jun/(n-1):mai/(n  ) (12 meses)
+    # Carteiras:     retorno de jul/(n  ):jun/(n+1)    (12 meses)
+    #                precos  de jun/(n  ):jun/(n+1) (13 meses)
+    #
+    # Argumentos
+    #
+    if (!is.xts(prices)) { prices <- as.xts(prices) }
+    n <- as.numeric(format(first(index(prices)),"%Y")) # First year
+    N <- as.numeric(format( last(index(prices)),"%Y")) # Last year
+    NewSample <- as.matrix(InitialSample)
+    NewSample[(n - (n - 1)),] <- 0 # First year equal zero
+    for ( i in (n+1):(N-1) ) {
+        p <- paste(i-1,"-06/",i+1,"-07", sep="") # Periodo de Interesse
+        NewSample[(i+1 - n),] <- !apply(prices[p], 2, anyNA)
+    }
+    NewSample[(N+1 - n),] <- 0 # First year equal zero
+    return(NewSample)
+}
+ySample2 <- filterNo24months(mPrices, ySample0) * ySample1
+rm(filterNo24months)
+sampleReport(ySample0, ySample2)
+
+
 
 # Bovespa Negociability Index
 mNegociabilidade <- importaBaseCSV("Input/mNegociabilidade.csv", START, END)

@@ -25,7 +25,7 @@
 ## - FILTRO Bovespa Negociability Index
 ## 0. SETTINGS ## #############################################################
 
-# === BIBLIOTECAS E FUNCOES === ===============================================
+# --- BIBLIOTECAS E FUNCOES --- -------------------------------------------------
 if ( !( "xts" %in% installed.packages() ) ) { install.packages("xts") }
 library(xts)
 
@@ -945,6 +945,85 @@ criterin <- yBookFirm[1:2,1:nAtivos] / valorzin[c(12,24),]
 #                               MARGIN=1, sum, na.rm=T                     ) )
 #
 #
+
+
+# # ### PRICING MODEL ### #######################################################
+# 
+# # szS szB bmH bmN bmL SH SN SL BN BL
+# AssetsSize_S <- portfolioAssets2(yMV,2,1)  # Small
+# AssetsSize_B <- portfolioAssets2(yMV,2,2)  # Big   
+# 
+# AssetsBM_H <- portfolioAssets2(yBM,3,1)    # Value (High BM)
+# AssetsBM_N <- portfolioAssets2(yBM,3,2)    # Neutral
+# AssetsBM_L <- portfolioAssets2(yBM,3,3)    # Growth (Low BM)
+# 
+# AssetsSH <- AssetsSize_S * AssetsBM_H # Small Value (High BM)
+# AssetsSN <- AssetsSize_S * AssetsBM_N # Small Neutral
+# AssetsSL <- AssetsSize_S * AssetsBM_L # Small Growth (Low BM)
+# AssetsBH <- AssetsSize_B * AssetsBM_H # Big Value (High BM)
+# AssetsBN <- AssetsSize_B * AssetsBM_N # Big Neutral
+# AssetsBL <- AssetsSize_B * AssetsBM_L # Big Growth (Low BM)
+# 
+# AssetsSH <- apply(AssetsSH, 1, function(x) as.logical(x) ) # Small Neutral
+# AssetsSN <- apply(AssetsSN, 2, function(x) as.logical(x) ) # Small Neutral
+# AssetsSL <- apply(AssetsSL, 2, function(x) as.logical(x) ) # Small Growth (Low BM)
+# AssetsBH <- apply(AssetsBH, 2, function(x) as.logical(x) ) # Big Value (High BM)
+# AssetsBN <- apply(AssetsBN, 2, function(x) as.logical(x) ) # Big Neutral
+# AssetsBL <- apply(AssetsBL, 2, function(x) as.logical(x) ) # Big Growth (Low BM)
+# AssetsSH[1:5,1:5]
+# 
+# rownames(AssetsSH) <- rownames(yBM)
+# rownames(AssetsSN) <- rownames(yBM)
+# rownames(AssetsSL) <- rownames(yBM)
+# rownames(AssetsBH) <- rownames(yBM)
+# rownames(AssetsBN) <- rownames(yBM)
+# rownames(AssetsBL) <- rownames(yBM)
+# 
+# # ...........................
+# 
+# interactPortfolios <- function (x, y) {
+#     # Criando tabela
+#     tabela <- x
+#     for (i in 1:nrow(tabela)) {
+#         tabela[i,] <- as.logical(x[i,] * y[i,])
+#     }
+#     return(tabela)
+# }
+# 
+# 
+# # HML = 1/2 (Small Value + Big Value) - 1/2 (Small Growth + Big Growth)
+# FactorHML <- 1/2*(AssetsSH)
+# 
+# # SMB = 1/3 (Small Value + Small Neutral + Small Growth)
+# #       - 1/3 (Big Value + Big Neutral + Big Growth)
+# PortfolioSMB <- 
+#     PortfolioHML
+# debug(portfolioSerie)
+# serieSmallValue <- portfolioSerie(mReturns, mMVclass,AssetsSH)
+# warnings()
+# head(AssetsSH[,1:5])
+# head(mReturns[,1:5])
+# tail(mReturns[,1:5])
+# tail(AssetsSH[,1:5])
+# 
+# serieSmallValue <- portfolioSerie(mReturns, mMVclass,AssetsSH)
+# 
+# seriePortBM1 <- portfolioSerie(mReturns, mMVclass, portfolioAssets2(yBM,5,1))
+# 
+# ## 4. INVESTOR SENTIMENT AND ANOMALIES ## #####################################
+# ## Sentimento do Investidor e Anomalias
+# ## 4.1. Análise das Médias após períodos de Sentimento Alto e Baixo
+# ## 4.2. Modelos Econométricos
+# ## 4.1 Extremos e sentimento defasado
+# ## 4.2 Extremos, sentimeto defasado e fatores de risco
+# ## 4.3 Extremos, dummys
+# 
+# # TESTE INDICE
+# LAG <- 12
+# summary(lm(seriePortBM1$rVW[(1+LAG):156]  ~ PCAstep3$x[,"PC1"][1:(156-LAG)]))
+# length(seriePortBM1$rVW[13:156])
+# length(PCAstep3$x[,"PC1"][1:144])
+
 
 ## PRICING MODEL ## ###########################################################
 ## 3. Fatores de Risco

@@ -11,7 +11,8 @@
 # 1. GETTING CLEANING DATA
 # 2. INVESTOR SENTIMENT INDEX
 # 3. CONSTRUCT PORTFOLIOS
-# 
+# 4. INVESTOR SENTIMENT AND ANOMALIES
+#
 
 ## 0. SETTINGS ## #############################################################
 ## Setting Parameters
@@ -401,63 +402,65 @@ portfolioAssets2 <- function(CRITERIO, nPortfolios=5, portfolio=1) {
 }
 
 portfolioSerie <- function (RETURN, MV, PortfolioAssets) {
+    
+    # INPUT
+    # ______________________________________________________________
+    #
+    # RETURN ...... Matriz de Retornos
+    # MV .......... Matriz com os Valores de Mercado
+    # PortfolioAssets ... Matriz de ativos pertecentes ao Portfolio
+    # ______________________________________________________________
+    
+    RETURN <- as.matrix(RETURN)
+    
+    for (i in 1:nrow(RETURN)) {
         
-        # INPUT
-        # ______________________________________________________________
-        #
-        # RETURN ...... Matriz de Retornos
-        # MV .......... Matriz com os Valores de Mercado
-        # PortfolioAssets ... Matriz de ativos pertecentes ao Portfolio
-        # ______________________________________________________________
+        # Cria vetor que diz qual ativo pertence à carteira
+        ASSETS <- as.logical(PortfolioAssets[dateIndex$nY[i],])
         
-        for (i in 1:nrow(RETURN)) {
-                
-                # Cria vetor que diz qual ativo pertence à carteira
-                ASSETS <- as.logical(PortfolioAssets[dateIndex$nY[i],])
-                
-                # Valor de Mercado total dos ativos da carteira
-                marketVALUE  <- sum(MV[i,ASSETS], na.rm=T)
-                
-                # Quantidade de ativos na carteira
-                nA  <- sum(as.numeric(ASSETS))
-                
-                # Media igualmente ponderada do retorno dos ativos da carteira
-                rEW <- mean(RETURN[i,ASSETS], na.rm=T)
-                
-                # Media ponderada pelo valor do retorno dos ativos da carteira
-                rWV <- sum (RETURN[i,ASSETS] * MV[i,ASSETS] / marketVALUE, na.rm=T)
-                
-                # xC
-                if ( !exists("pSerie") ) {
-                        # SE FOR A TABELA NAO EXISTE, CRIA
-                        pSerie <- data.frame(rEW=rEW,
-                                             rWV=rWV,
-                                             MV=marketVALUE,
-                                             nA=nA)
-                } else { # SE EXISTE, APENAS ADICIONAR LINHAS
-                        pSerie <- rbind(pSerie,c(rEW,
-                                                 rWV,
-                                                 marketVALUE,
-                                                 nA))
-                }
+        # Valor de Mercado total dos ativos da carteira
+        marketVALUE  <- sum(MV[i,ASSETS], na.rm=T)
+        
+        # Quantidade de ativos na carteira
+        nA  <- sum(as.numeric(ASSETS))
+        
+        # Media igualmente ponderada do retorno dos ativos da carteira
+        rEW <- mean(RETURN[i,ASSETS], na.rm=T)
+        
+        # Media ponderada pelo valor do retorno dos ativos da carteira
+        rWV <- sum (RETURN[i,ASSETS] * MV[i,ASSETS] / marketVALUE, na.rm=T)
+        
+        # xC
+        if ( !exists("pSerie") ) {
+            # SE FOR A TABELA NAO EXISTE, CRIA
+            pSerie <- data.frame(rEW=rEW,
+                                 rWV=rWV,
+                                 MV=marketVALUE,
+                                 nA=nA)
+        } else { # SE EXISTE, APENAS ADICIONAR LINHAS
+            pSerie <- rbind(pSerie,c(rEW,
+                                     rWV,
+                                     marketVALUE,
+                                     nA))
         }
-        
-        # ______________________________________________________________
-        #
-        #  OUTPUT
-        # ______________________________________________________________
-        #
-        # rEW ... Série de retornos igualmente ponderado
-        # rWV ... Série de retornos ponderado pelo valor
-        # MV .... Valor de Mercado da carteira no período
-        # nA .... Número de ativos da carteira no período
-        # xC .... Valor médio da característica de formação da carteira
-        # ______________________________________________________________
-        
-        row.names(pSerie) <- row.names(RETURN)
-        return(pSerie)
-        
-        
+    }
+    
+    # ______________________________________________________________
+    #
+    #  OUTPUT
+    # ______________________________________________________________
+    #
+    # rEW ... Série de retornos igualmente ponderado
+    # rWV ... Série de retornos ponderado pelo valor
+    # MV .... Valor de Mercado da carteira no período
+    # nA .... Número de ativos da carteira no período
+    # xC .... Valor médio da característica de formação da carteira
+    # ______________________________________________________________
+    
+    row.names(pSerie) <- row.names(RETURN)
+    return(pSerie)
+    
+    
 }
 
 # === Returns === =============================================================

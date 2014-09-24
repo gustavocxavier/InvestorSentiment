@@ -26,6 +26,7 @@
 ## - Funcao p/ retornar todos os portfolios de uma vez allPortfoliosSeries
 ## - Funcao LongShortSeries
 ## - FILTRO Bovespa Negociability Index
+## - FAZER UM FILTRO DE DATA PRA mProxies em breve
 
 ## 1. SETTINGS ## #############################################################
 
@@ -366,9 +367,9 @@ cleanData <- function(yData,Sample) {
 
 #== 1.3 My Parameters = ===================================================
 ## Definindo Parametros / Setting Parameters
-START        <- as.Date("1995-06-01") # Initial Date
+START        <- as.Date("2000-06-01") # Initial Date
 END          <- as.Date("2014-07-31") # Final Date
-PERIOD.XTS   <- "1995-06/2014-07"
+PERIOD.XTS   <- "2000-06/2014-07"
 # M&O(2011): jun/95 a jun/08
 
 ## 2. GET DATA AND CLEAN ## ###################################################
@@ -399,14 +400,12 @@ ySample0[ySample0>0]      <- 1
 # --- FILTRO EMPRESAS NAO FINANCEIRAS --- -------------------------------------
 
 ySample1 <- filterNoFinancial(ySample0, "Input/dbStocks.csv")
-rm(filterNoFinancial)
 
 sampleReport(ySample0, ySample1)
 
 # --- FILTRO DE 24 MESES --- --------------------------------------------------
 
 ySample2 <- filterNo24months(mPrices, ySample0) * ySample1
-rm(filterNo24months)
 sampleReport(ySample0, ySample2)
 
 # --- FILTRO Bovespa Negociability Index --- ----------------------------------
@@ -483,19 +482,24 @@ sampleReport(ySample0,ySample4)
 ySample <- asLogicalDataFrame(ySample4)
 
 ## 3. INVESTOR SENTIMENT INDEX ## #############################################
-## 2. Índice de Sentimento
-## 2.1. Temporalidade das Proxies: Selecionar proxies que serão defasadas
-## 2.2. Índice de Sentimento não Ortogonalizado
-## 2.3. Índice de Sentimento Ortogonalizado à variáveis macroeconômicas  
+## 3. Índice de Sentimento
+## 3.1. Temporalidade das Proxies: Selecionar proxies que serão defasadas
+## 3.2. Índice de Sentimento não Ortogonalizado
+## 3.3. Índice de Sentimento Ortogonalizado à variáveis macroeconômicas  
 
 # === Read/Compute Proxies === ===============================================
 
 mProxies   <- read.table ("Input/mProxies.csv",          # Read data
                           header = T, sep=";", dec=",",
                           row.names=1)
-x <- as.Date(rownames(mProxies), format="%d/%m/%Y")      # Temporary variable
-mProxies <- mProxies[(x >= START & x <= END),] ; rm(x) ; # Date filter
-as.dist(round(cor(mProxies),2))                          # Correlations
+
+# x <- as.Date(rownames(mProxies), format="%d/%m/%Y")      # Temporary variable
+
+# TO DO: FAZER UM FILTRO DE DATA PRA mProxies em breve
+mProxies <- mProxies[!is.na(mProxies$NIPO_lagged),]
+
+#as.dist(round(cor(mProxies, use="na.or.complete"),2))    # Correlations s/ NA
+as.dist(round(cor(mProxies, use="everything"),2))       # Correlations c/ Na
 
 # === First Step === ==========================================================
 # Estimating first component of all proxies and their lags and choose the best
@@ -526,23 +530,19 @@ mMacroeconomics   <- read.table ("Input/mMacroeconomics.csv",   header = T,
 
 # Date Filter
 x <- as.Date(rownames(mMacroeconomics), format="%d/%m/%Y")
-mMacroeconomics <-  mMacroeconomics[(x >= START & x <= as.Date("2013-12-01")),]
+mMacroeconomics <-  mMacroeconomics[(x >= as.Date("2001-01-01") &
+                                         x <= as.Date("2013-12-01")),]
 rm(x)
-                                                  # <= END
-
-END   <- as.Date("2014-07-01") # TODO: Discover why this
 
 # dummy SELIC igual a 1 quando a taxa cai em rela??o ao m?s anterior
 dSELIC <- c(0,as.numeric(embed(mMacroeconomics$SELIC,2)[,1] <= 
                                  embed(mMacroeconomics$SELIC,2)[,2]
-)
-)
+))
 
 # dummy PIB igual a 1 quando o PIB sobe em rela??o ao m?s anterior
 dPIB   <- c(0,as.numeric(embed(mMacroeconomics$PIB,2)[,1] >=
                                  embed(mMacroeconomics$PIB,2)[,2]
-)
-)
+))
 
 # Retirando a série da Selic e deixando só a do PIB
 mMacroeconomics$SELIC <- NULL

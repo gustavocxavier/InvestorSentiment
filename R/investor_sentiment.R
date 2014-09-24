@@ -24,105 +24,74 @@
 ## - Funcao LongShortSeries
 
 ## 0. SETTINGS ## #############################################################
-## Definindo Parametros / Setting Parameters
-
-# === PARAMETROS === ==========================================================
-START        <- as.Date("1995-06-01") # Initial Date
-END          <- as.Date("2009-07-31") # Final Date
-PERIOD.XTS   <- "1995-06/2009-07"
-# M&O(2011): jun/95 a jun/08
 
 # === BIBLIOTECAS E FUNCOES === ===============================================
 if ( !( "xts" %in% installed.packages() ) ) { install.packages("xts") }
 library(xts)
 
+## Definindo Parametros / Setting Parameters
+
+# === PARAMETROS === ==========================================================
+## Definindo Parametros / Setting Parameters
+START        <- as.Date("1995-06-01") # Initial Date
+END          <- as.Date("2009-07-31") # Final Date
+PERIOD.XTS   <- "1995-06/2009-07"
+# M&O(2011): jun/95 a jun/08
+
 ## 1. GETTING CLEANING DATA ## ################################################
 ## Get Data and Clean
 ## Carregar e limpar dados
 
-# === Functions === ===========================================================
-
-importaBaseCSV <- function(arquivo, doDia, ateDia,
-                           formato="%d/%m/%Y", pula_linha=0, financeiras=F) {
-    
-    # Function to import Brazilian Data
-    # Funcao para carregar dados Economatica
-    
-    # Importanto matriz de precos mensais
-    tabela <- read.table (arquivo, header = T, sep=";", dec=",",
-                          row.names=1, skip=pula_linha,
-                          na.strings="-", stringsAsFactors=F)
-    
-    # Retirando as empresas financeiras (coluna 1109(ABCB11) a 1224)
-    if (financeiras == F ) { tabela     <- tabela[c(-1109:-1224)] }
-    
-    # TODO: Fazer a seleÁ„o de empresas financeiras e nao financeiras
-    # automatica.
-    
-    # Filtrando a data em matriz mensal
-    tabela <-  tabela[(as.Date(rownames(tabela), format=formato) >= doDia
-                       &
-                           as.Date(rownames(tabela), format=formato) <= ateDia)
-                      ,]
-    return(tabela)
-}
-
-createDateIndex <- function() {
-    # FunÁ„o que cria Ìndice de data
-    # Criando de uma matriz mapa de datas
-    matriz_indice <- data.frame(Date=seq(from=START,to=END,by="month"))
-    
-    matriz_indice <- cbind(matriz_indice,
-                           M=as.numeric(substr(as.character(matriz_indice$Date),6,7)),
-                           Y=as.numeric(substr(as.character(matriz_indice$Date),1,4)),
-                           Q=as.numeric(substr(quarters(matriz_indice$Date),2,2))
-    )
-    matriz_indice <- cbind(matriz_indice,
-                           Quarter=paste(matriz_indice$Q, "T", matriz_indice$Y, sep = ""),
-                           nM = seq(1:length(matriz_indice$Date)),
-                           nY = matriz_indice$Y+1-as.numeric(substr(as.character(START),1,4)),
-                           nQ = sort(rep(1:ceiling(nrow(matriz_indice)/4),4))[1:nrow(matriz_indice)]
-    )
-    
-    return(matriz_indice)
-}
-
-filter24months <- function (sample1, prices) {
-    # Function to filter the stocks that have 24 months of consecutive prices
-    newSample <- sample1
-    for ( j in seq_len(ncol(prices)) ) {
-        # Fazer essa rotina para coluna j
-        for ( i in seq_len(nrow(prices)) ) {
-            # Fazer essa rotina para cada linha i da coluna j
-            # Verificar se a linha i est? entre START+1 e END-1
-            if ( i<=12 ) {
-                newSample[as.numeric(dateIndex$nY[i]),j] <- 0
-            }
-            else if( i>floor(nrow(dateIndex)/12)*12 ) {
-                # nao faz nada
-            }
-            # Verificar se a linha i corresponde ao mes de junho
-            else if ( as.numeric(dateIndex$M[i])==6 ) {
-                # Verifica se tem pre√ßo nos 24 meses consecutivos
-                if (sum(!is.na(prices[(i-12):(i+12),j])) != 25) {
-                    # E atribui 0 na matriz de controle da amostra
-                    newSample[as.numeric(dateIndex$nY[i]),j] <- 0
-                }
-            }
-        }
-    }
-    return(newSample)
-}
-
 # === Read Data === ===========================================================
 
-# Stock Prices
-mPrices     <- importaBaseCSV("Input/mPrices.csv", START, END)
+# Carregando matriz de precos / Stock Prices
+mPrices            <- read.table ("Input/mPrices.csv", header = T, sep=";",
+                                  dec=",", skip=0, row.names=1, na.strings="-",
+                                  stringsAsFactors=F)
+row.names(mPrices) <- as.Date(row.names(mPrices), format="%d/%m/%Y")
+
+# Filtrando Periodo
+mPrices.xts        <- as.xts(mPrices, descr="MONTHLY PRICES")[PERIOD.XTS]
+mPrices            <- data.frame(as.matrix(mPrices.xts)) ; rm(mPrices.xts)
 
 # === Initial Sample === ======================================================
-
+# --- AMOSTRA INICIAL --- -----------------------------------------------------
 # Initial Sample (1 para todos os anos que houve cotacao)
-ySample0 <- importaBaseCSV("Input/ySample0.csv", START, END, formato="%Y")
+mSample0                  <- as.matrix(mPrices)
+mSample0[!is.na(mPrices)] <- 1
+mSample0[is.na(mPrices)]  <- 0
+ySample0                  <- as.matrix(apply.yearly(as.xts(mSample0), mean))
+rm(mSample0)
+ySample0[ySample0>0]      <- 1
+
+# --- FILTRO EMPRESAS NAO FINANCEIRAS --- -------------------------------------
+
+filterNoFinancial <- function(Sample, dbFile) {
+    # Exclui as empresas financeiras
+    # smpl ... Matriz de Amostra
+    # file ... Arquivo onde tem a relacao de empresas
+    
+    db <- read.table(dbFile, dec=",", sep=";", header = T, na.strings="-",
+                     stringsAsFactors=F)
+    
+    Sample <- reclass(Sample)
+    Sample[,(db$SetorEconomatica=="Financas e Seguros")] <- 0
+    
+    return(Sample)
+}
+ySample1 <- filterNoFinancial(ySample0, "Input/dbStocks.csv")
+rm(filterNoFinancial)
+sampleReport <- function (s0, s1) {
+    s0 <- as.xts(s0)
+    Sample0 <- rowSums(as.data.frame(s0, row.names=substr(index(s0), 1, 4)))
+    Sample  <- as.data.frame(Sample0)
+    Sample1 <- rowSums(as.data.frame(s1, row.names=substr(index(s1), 1, 4)))
+    Percent <- round(as.vector(Sample1) / as.vector(Sample0),2)
+    Sample  <- cbind(Sample, as.data.frame(Sample1), Percent)
+    colnames(Sample) <- c("Initial", "Final", "%")
+    return(Sample)
+}
+sampleReport(ySample0, ySample1)
 
 dateIndex <- createDateIndex() # Generate date map matrix for the next cmd
 

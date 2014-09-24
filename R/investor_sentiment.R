@@ -371,6 +371,8 @@ END          <- as.Date("2014-07-31") # Final Date
 PERIOD.XTS   <- "2000-06/2014-07"
 # M&O(2011): jun/95 a jun/08
 
+
+
 ## 2. GET DATA AND CLEAN ## ##################################################
 ## Get Data and Clean
 ## Carregar e limpar dados
@@ -400,12 +402,12 @@ ySample0[ySample0>0]      <- 1
 ySample1 <- filterNoFinancial(ySample0, "Input/dbStocks.csv")
 sampleReport(ySample0, ySample1)
 
-#   2.2.2 FILTRO DE 24 MESES --- --------------------------------------------------
+#   2.2.2 FILTRO DE 24 MESES - ------------------------------------------------
 
 ySample2 <- filterNo24months(mPrices, ySample0) * ySample1
 sampleReport(ySample0, ySample2)
 
-# --- FILTRO Bovespa Negociability Index --- ----------------------------------
+#   2.2.3 Filtro Bovespa Negociability Index - --------------------------------
 # TODO: FILTRO Bovespa Negociability Index
 # mNegociabilidade <- importaBaseCSV("Input/mNegociabilidade.csv", START, END)
 # 
@@ -417,7 +419,7 @@ sampleReport(ySample0, ySample2)
 # ySampleNegociab <- ySample0
 # ySampleNegociab[yNegociabilidade <= 0.01] <- 0
 
-# --- FILTRO VALOR DE MERCADO EM 30/06 e 31/12 --- ----------------------------
+#   2.2.3 Filtro Valor de Mercado em 30/06 e 31/12 - --------------------------
 
 # Read Market Value of the Firm
 mMVfirm <- read.table ("Input/mMarketValueFirm.csv", header = T, sep=";", dec=",",
@@ -446,7 +448,7 @@ ySample3 <- ySample3 * ySample2 # Interagem com atendem ao filtro anterior
 
 sampleReport(ySample0, ySample3)
 
-# --- FILTRO DE PATRIMONIO LIQUIDO --- ----------------------------------------
+#   2.2.4 Filtro Patrimonio Liquido - -----------------------------------------
 
 yBookFirm <- read.table ("Input/yBookFirm.csv", header = T, sep=";",
                          dec=",", skip=0,
@@ -473,9 +475,11 @@ sampleReport(ySample0,ySample4)
 # ySamplePositiveBook[ is.na(yBookFirm) ] <- 0
 # ySamplePositiveBook[ yBookFirm < 0    ] <- 0
 
-# === Final Sample === ========================================================
+#== 2.3 Final Sample = ========================================================
 
 ySample <- asLogicalDataFrame(ySample4)
+
+
 
 ## 3. INVESTOR SENTIMENT INDEX ## #############################################
 ## 3. Índice de Sentimento
@@ -497,7 +501,7 @@ mProxies <- mProxies[!is.na(mProxies$NIPO_lagged),]
 #as.dist(round(cor(mProxies, use="na.or.complete"),2))    # Correlations s/ NA
 as.dist(round(cor(mProxies, use="everything"),2))       # Correlations c/ Na
 
-#== 3.2 First Step ============================================================
+#== 3.2 First Step = ==========================================================
 # Estimating first component of all proxies and their lags and choose the best
 
 PCAstep1 <- prcomp(mProxies, scale=T)
@@ -508,7 +512,7 @@ colnames(mBestProxies)                            # Best proxies
 round(cor(PCAstep1$x[,"PC1"],mBestProxies),2)     # Correlation with PC1
 as.dist(round(cor(mBestProxies),2))               # Correlations between them
 
-#== 3.3 Second Step === =========================================================
+#== 3.3 Second Step = =========================================================
 # Estimating first component of the best proxies
 
 PCAstep2 <-prcomp(mBestProxies, scale=T)
@@ -517,7 +521,7 @@ cor(PCAstep1$x[,"PC1"],PCAstep2$x[,"PC1"]) # Correlation with PC1 of the 1º step
 summary(PCAstep2)                          # Proportion of Variance
 PCAstep2$rotation[,"PC1"] # Not orthogonalized index (osb.: not important)
 
-# === Third Step === ==========================================================
+#== 3.4 Third Step = ==========================================================
 # Estimate orthogonilized proxies by the regression all raw proxies
 
 # Read macroeconomics variables
@@ -573,7 +577,7 @@ screeplot(PCAstep3, type="line", main="Scree Plot Sentimento Ortogonalizado")
 PCAstep3$rotation[,"PC1"] * (-1) # Equacao do Indice de Sent. Ortogonalizado
 Sent <- PCAstep3$x[,"PC1"]
 
-# === Sentiment Results === ===================================================
+#== 3.5 Sentiment Results = ===================================================
 # as.dist(round(cor(mProxies),2))                      # Verificando correlação entre as proxies
 # round(cor(PCAstep1$x[,"PC1"],mProxies),2)            # Correlação das Proxies com 1ª Componente da 1ª Etapa
 # round(cor(PCAstep1$x[,"PC1"],mBestProxies),2)        # Correlação Proxies Escolhidas c/ 1ª Componente da 1ª Etapa
@@ -599,6 +603,7 @@ Sent <- PCAstep3$x[,"PC1"]
 # summary(lm(seriePortBM1$rVW[(1+LAG):156]  ~ PCAstep3$x[,"PC1"][1:(156-LAG)]))
 # length(seriePortBM1$rVW[13:156])
 # length(PCAstep3$x[,"PC1"][1:144])
+
 
 
 ## 4. CONSTRUCT PORTFOLIOS ## #################################################
@@ -929,6 +934,8 @@ rm(list=ls(pattern= "PL5.", all.names = TRUE))
 #
 #
 
+
+
 ## 5. PRICING MODELS ## #######################################################
 ## 5.1 Ativos Livre de Risco
 ## 5.2 Carteiras de Mercado
@@ -999,6 +1006,7 @@ rm(list=ls(pattern= "PL5.", all.names = TRUE))
 # 
 # seriePortBM1 <- portfolioSerie(mReturns, mMVclass, portfolioAssets2(yBM,5,1))
 # 
+
 
 
 ## 6. INVESTOR SENTIMENT AND ANOMALIES ## #####################################

@@ -109,7 +109,7 @@ asLogicalDataFrame <- function (df) {
     return(dfOut)
 }
 
-# - 1.2.2 Sentiment Functions - -------------------------------------------
+#   1.2.2 Sentiment Functions - -------------------------------------------
 
 chooseLAG <- function (m) {
     
@@ -139,7 +139,7 @@ chooseLAG <- function (m) {
     # ______________________________________________________________
 }
 
-# - 1.2.3 Portfolio Functions - -------------------------------------------
+#   1.2.3 Portfolio Functions - -------------------------------------------
 
 `%between%` <- function(x,rng) {
     
@@ -364,11 +364,11 @@ cleanData <- function(yData,Sample) {
 
 ## Definindo Parametros / Setting Parameters
 
-# = 1.3 My Parameters = ===================================================
+#== 1.3 My Parameters = ===================================================
 ## Definindo Parametros / Setting Parameters
 START        <- as.Date("1995-06-01") # Initial Date
-END          <- as.Date("2009-07-31") # Final Date
-PERIOD.XTS   <- "1995-06/2009-07"
+END          <- as.Date("2014-07-31") # Final Date
+PERIOD.XTS   <- "1995-06/2014-07"
 # M&O(2011): jun/95 a jun/08
 
 ## 2. GET DATA AND CLEAN ## ###################################################
@@ -481,16 +481,6 @@ sampleReport(ySample0,ySample4)
 # === Final Sample === ========================================================
 
 ySample <- asLogicalDataFrame(ySample4)
-
-# # Compute all the filters together
-# ySample <- ySample24m * ySampleNegociab * ySamplePositiveBook
-# 
-# ## Generate Yearly Sample Control Matrix
-# mSample <- ySample[sort(rep(1:nrow(ySample),12)),] # repeat 12 times the values
-# # Add rows to the last incomplete year
-# mSample <- rbind(mSample, mSample[rep(nrow(mSample),
-#                                       nrow(mPrices)-nrow(mSample)), ])
-# row.names(mSample) <- row.names(mPrices) # Set name of the rows equal mPrices
 
 ## 3. INVESTOR SENTIMENT INDEX ## #############################################
 ## 2. Índice de Sentimento

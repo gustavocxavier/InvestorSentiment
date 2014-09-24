@@ -615,149 +615,179 @@ Sent <- PCAstep3$x[,"PC1"]
 ##       portfolioAssetesInteracao = portfolioAssets1 x portfolioAssets2
 ## 3.3 Retorno das Carteiras
 ##       portfolioSerie - retorna ...
+## 3.  PORTFOLIOS ## ##########################################################
+## 3.1 Construcao (MM utilizou 5 carteiras)
+## 3.1.1 portfolioRange
+## 3.1.2 portfolioAssets (cria_matriz_carteira - retorna dCriterio)
+## 3.1.3 portfolioSerie  (rEW, rVW, n, xVM, xC)
+##       (CALCULAR MOM, SIZ E LIQ E COMPARAR COM MM)
+## 3.2   Pricing Model
+## 3.2.1 Série de Retorno da Carteira de Mercado 
+##       (COMPARAR COM MM O CAPM)
+## 3.2.2 portfolioAssetesInteracao = portfolioAssets1 x portfolioAssets2
+## 3.2.3 Serie de retorno dos fatores FF (SMB, HML)
+##       (COMPARAR BM SIMPLES COM MM, retorno merdio e capm)
+##       (COMPARAR FF COM MM)
+## 3.2.4 Serie de retorno dos demais fatores (MOM, LIQ)
 
-# === Functions === ===========================================================
+mPrices.xts <- as.xts(mPrices)
+mReturns <- diff(log(mPrices.xts), lag=1) # Compute Logarithmic Returns
 
-portfolioRange <- function(CRITERIO, nPortfolios=5, portfolio=1) {
-    
-    # ______________________________________________________________
-    # 
-    # Retorna os valores máximos e mínimos para formação de um portfolio
-    # Cria vetor de sequencia
-    x <- c(0,seq(1:nPortfolios)/nPortfolios)
-    # Salvando o valor maximo e minimo
-    RANGE <- quantile(CRITERIO, x[portfolio:(portfolio+1)], na.rm=T)
-    # Retorna a faixa de valor do portfolio escolhido
-    
-    # ______________________________________________________________
-    
-    return(RANGE)
+# === TAMANHO === =============================================================
+
+cleanData <- function(yData,Sample) {
+    # Atribui NA em todos os valores yData em n-1 qnd Sample em n for FALSE
+    yData[-nrow(yData),][(Sample[-1,]==F)] <- NA
+    # Atribui NA em todos os valores yData no ultimo ano
+    yData[ nrow(yData),] <- NA
+    return(yData)
 }
 
-`%between%` <- function(x,rng) {
-    
-    # FUNÇÃO QUE VERIFICA SE UM VALOR ESTÁ ENTRE OS EXTREMOS DE UMA
-    # SÉRIE
-    # ______________________________________________________________
-    # INPUT:
-    #
-    # x ...... Valor de interesse
-    # rng .... Vetor com a série ou os extremos
-    #
-    # Sintaxe: x %between% rng
-    #
-    # ______________________________________________________________
-    
-    x <= max(rng,na.rm = TRUE) & x >= min(rng,na.rm = TRUE)
-    
-    # ______________________________________________________________
-    # OUTPUT: Valor lógico
-    # ______________________________________________________________
-}
+yMVfirmJun <- cleanData(yMVfirmJun, ySample)
 
-portfolioAssets <- function(CRITERIO, nPortfolios=5, portfolio=1) {
-        
-        # CRITERIO .... Vetor de criterio
-        # nPortfolios . Número de portfolios
-        # iPortfolio .. Portfolio desejado
-        
-        # Salvando faixa de valor do portfolio escolhido
-        RANGE <- portfolioRange(CRITERIO, nPortfolios, portfolio)
-        
-        # Cirando vetor de ativos que participam da carteira
-        dCriterio <- CRITERIO %between% RANGE
-        dCriterio[is.na(dCriterio)] <- FALSE
-        return(as.numeric(dCriterio))
-}
+PS5.1a <- portfolioSelectAssets(yMVfirmJun, 5, 1, report=T)
+PS5.2a <- portfolioSelectAssets(yMVfirmJun, 5, 2, report=F) 
+PS5.3a <- portfolioSelectAssets(yMVfirmJun, 5, 3, report=F)
+PS5.4a <- portfolioSelectAssets(yMVfirmJun, 5, 4, report=F)
+PS5.5a <- portfolioSelectAssets(yMVfirmJun, 5, 5, report=T)
 
-portfolioAssets2 <- function(CRITERIO, nPortfolios=5, portfolio=1) {
-        for (i in 1:nrow(CRITERIO)) {
-                # Salvando faixa de valor do portfolio escolhido
-                #RANGE <- portfolioRange(CRITERIO[i,], nPortfolios, portfolio)
-                
-                # Cirando vetor de ativos que participam da carteira
-                dCriterioVector <- portfolioAssets(CRITERIO[i,], nPortfolios, portfolio)
-                #dCriterio <- CRITERIO %between% RANGE
-                #dCriterio[is.na(dCriterio)] <- FALSE 
-                
-                # ADICIONAR A UM DATA FRAME
-                if ( !exists("dCriterioMatrix") ) {
-                        # SE FOR A TABELA NAO EXISTE, CRIA
-                        dCriterioMatrix <- CRITERIO[1,]
-                        dCriterioMatrix[!is.na(dCriterioMatrix)] <- NA
-                        dCriterioMatrix <- dCriterioVector
-                } else { # SE EXISTE, APENAS ADICIONAR LINHAS
-                        dCriterioMatrix <- rbind(dCriterioMatrix,
-                                                 dCriterioVector)
-                }
-        }
-        dCriterioMatrix[is.na(dCriterioMatrix)] <- 0
-        row.names(dCriterioMatrix) <- row.names(CRITERIO)
-        # RETORNAR O DATA FRAME
-        return(dCriterioMatrix)
-}
+# Valor de Mercado da Classe para ponderacao
+mMVclass <- read.table ("Input/mMarketValue.csv", header = T, sep=";", dec=",",
+                        skip=1, row.names=1, na.strings="-", stringsAsFactors=F)
+rownames(mMVclass) <- as.Date(rownames(mMVclass),"%d/%m/%Y")
 
-portfolioSerie <- function (RETURN, MV, PortfolioAssets) {
-    
-    # INPUT
-    # ______________________________________________________________
-    #
-    # RETURN ...... Matriz de Retornos
-    # MV .......... Matriz com os Valores de Mercado
-    # PortfolioAssets ... Matriz de ativos pertecentes ao Portfolio
-    # ______________________________________________________________
-    
-    RETURN <- as.matrix(RETURN)
-    
-    for (i in 1:nrow(RETURN)) {
-        
-        # Cria vetor que diz qual ativo pertence à carteira
-        ASSETS <- as.logical(PortfolioAssets[dateIndex$nY[i],])
-        
-        # Valor de Mercado total dos ativos da carteira
-        marketVALUE  <- sum(MV[i,ASSETS], na.rm=T)
-        
-        # Quantidade de ativos na carteira
-        nA  <- sum(as.numeric(ASSETS))
-        
-        # Media igualmente ponderada do retorno dos ativos da carteira
-        rEW <- mean(RETURN[i,ASSETS], na.rm=T)
-        
-        # Media ponderada pelo valor do retorno dos ativos da carteira
-        rWV <- sum (RETURN[i,ASSETS] * MV[i,ASSETS] / marketVALUE, na.rm=T)
-        
-        # xC
-        if ( !exists("pSerie") ) {
-            # SE FOR A TABELA NAO EXISTE, CRIA
-            pSerie <- data.frame(rEW=rEW,
-                                 rWV=rWV,
-                                 MV=marketVALUE,
-                                 nA=nA)
-        } else { # SE EXISTE, APENAS ADICIONAR LINHAS
-            pSerie <- rbind(pSerie,c(rEW,
-                                     rWV,
-                                     marketVALUE,
-                                     nA))
-        }
-    }
-    
-    # ______________________________________________________________
-    #
-    #  OUTPUT
-    # ______________________________________________________________
-    #
-    # rEW ... Série de retornos igualmente ponderado
-    # rWV ... Série de retornos ponderado pelo valor
-    # MV .... Valor de Mercado da carteira no período
-    # nA .... Número de ativos da carteira no período
-    # xC .... Valor médio da característica de formação da carteira
-    # ______________________________________________________________
-    
-    row.names(pSerie) <- row.names(RETURN)
-    return(pSerie)
-    
-    
-}
+# Filtrando Periodo
+mMVclass.xts <- as.xts(mMVclass, descr="MONTHLY PRICES")[PERIOD.XTS]
+mMVclass     <- data.frame(as.matrix(mMVclass.xts)) ; rm(mMVclass.xts)
+
+PS5.1r <- portfolioSerie(mReturns, mMVclass, PS5.1a)
+PS5.2r <- portfolioSerie(mReturns, mMVclass, PS5.2a)
+PS5.3r <- portfolioSerie(mReturns, mMVclass, PS5.3a)
+PS5.4r <- portfolioSerie(mReturns, mMVclass, PS5.4a)
+PS5.5r <- portfolioSerie(mReturns, mMVclass, PS5.5a, T)
+
+data.frame(P1=c(mean(PS5.1r$rVW, na.rm=T),sd(PS5.1r$rVW, na.rm=T))*100,
+           P2=c(mean(PS5.2r$rVW, na.rm=T),sd(PS5.2r$rVW, na.rm=T))*100,
+           P3=c(mean(PS5.3r$rVW, na.rm=T),sd(PS5.3r$rVW, na.rm=T))*100,
+           P4=c(mean(PS5.4r$rVW, na.rm=T),sd(PS5.4r$rVW, na.rm=T))*100,
+           P5=c(mean(PS5.5r$rVW, na.rm=T),sd(PS5.5r$rVW, na.rm=T))*100,
+           row.names=c("r","DP"))
+
+rm(list=ls(pattern= "PS5.", all.names = TRUE))
+
+# --- Testando c/ MV class ----------------------------------------------------
+# Cria matriz apenas com os valores de Dez e apenas com valores de Jun
+yMVclassJun <- mMVclass[(months(as.Date(rownames(mMVclass)), T)=="jun"),]
+# yMVclassDez <- mMVclass[(months(as.Date(rownames(mMVclass)), T)=="dez"),]
+yMVclassJun <- cleanData(yMVclassJun, ySample)
+
+PS5.1a <- portfolioSelectAssets(yMVclassJun, 5, 1, report=T)
+PS5.2a <- portfolioSelectAssets(yMVclassJun, 5, 2, report=F) 
+PS5.3a <- portfolioSelectAssets(yMVclassJun, 5, 3, report=F)
+PS5.4a <- portfolioSelectAssets(yMVclassJun, 5, 4, report=F)
+PS5.5a <- portfolioSelectAssets(yMVclassJun, 5, 5, report=T)
+
+PS5.1r <- portfolioSerie(mReturns, mMVclass, PS5.1a)
+PS5.2r <- portfolioSerie(mReturns, mMVclass, PS5.2a)
+PS5.3r <- portfolioSerie(mReturns, mMVclass, PS5.3a)
+PS5.4r <- portfolioSerie(mReturns, mMVclass, PS5.4a)
+PS5.5r <- portfolioSerie(mReturns, mMVclass, PS5.5a)
+
+data.frame(P1=c(mean(PS5.1r$rVW, na.rm=T),sd(PS5.1r$rVW, na.rm=T))*100,
+           P2=c(mean(PS5.2r$rVW, na.rm=T),sd(PS5.2r$rVW, na.rm=T))*100,
+           P3=c(mean(PS5.3r$rVW, na.rm=T),sd(PS5.3r$rVW, na.rm=T))*100,
+           P4=c(mean(PS5.4r$rVW, na.rm=T),sd(PS5.4r$rVW, na.rm=T))*100,
+           P5=c(mean(PS5.5r$rVW, na.rm=T),sd(PS5.5r$rVW, na.rm=T))*100,
+           row.names=c("r","DP"))
+
+# /// THE END ///
+
+# === LIQUIDEZ === ============================================================
+
+# Valor de Mercado da Classe para ponderacao
+mVolume <- read.table ("Input/mVolume.csv", header = T, sep=";", dec=",",
+                       skip=1, row.names=1, na.strings="-", stringsAsFactors=F)
+rownames(mVolume)  <- as.Date(rownames(mVolume),"%d/%m/%Y")
+
+# Filtrando Periodo
+mVolume.xts <- as.xts(mVolume, descr='Volume em Reais')[PERIOD.XTS]
+yVolume     <- apply.yearly(mVolume.xts, mean)
+mVolume     <- data.frame(as.matrix(mVolume.xts)) ; rm(mVolume.xts)
+
+yVolume            <- cleanData(yVolume,    ySample)
+
+PL5.1a <- portfolioSelectAssets(yVolume, 5, 1)
+PL5.2a <- portfolioSelectAssets(yVolume, 5, 2) 
+PL5.3a <- portfolioSelectAssets(yVolume, 5, 3)
+PL5.4a <- portfolioSelectAssets(yVolume, 5, 4)
+PL5.5a <- portfolioSelectAssets(yVolume, 5, 5)
+PL5.1r <- portfolioSerie(mReturns, mMVclass, PL5.1a)
+PL5.2r <- portfolioSerie(mReturns, mMVclass, PL5.2a)
+PL5.3r <- portfolioSerie(mReturns, mMVclass, PL5.3a)
+PL5.4r <- portfolioSerie(mReturns, mMVclass, PL5.4a)
+PL5.5r <- portfolioSerie(mReturns, mMVclass, PL5.5a)
+
+data.frame(P1=c(mean(PL5.1r$rVW, na.rm=T),sd(PL5.1r$rVW, na.rm=T))*100,
+           P2=c(mean(PL5.2r$rVW, na.rm=T),sd(PL5.2r$rVW, na.rm=T))*100,
+           P3=c(mean(PL5.3r$rVW, na.rm=T),sd(PL5.3r$rVW, na.rm=T))*100,
+           P4=c(mean(PL5.4r$rVW, na.rm=T),sd(PL5.4r$rVW, na.rm=T))*100,
+           P5=c(mean(PL5.5r$rVW, na.rm=T),sd(PL5.5r$rVW, na.rm=T))*100,
+           row.names=c("r","DP"))
+
+rm(list=ls(pattern= "PL5.", all.names = TRUE))
+
+# NAO DEEU!!!
+
+# === BM === ==================================================================
+# TO DO: Calcular BM da classe
+
+yBM <- yBookFirm / yMVfirmDez
+
+PB5.1a <- portfolioSelectAssets(yBM, 5, 1)
+PB5.2a <- portfolioSelectAssets(yBM, 5, 2) 
+PB5.3a <- portfolioSelectAssets(yBM, 5, 3)
+PB5.4a <- portfolioSelectAssets(yBM, 5, 4)
+PB5.5a <- portfolioSelectAssets(yBM, 5, 5)
+PB5.1r <- portfolioSerie(mReturns, mMVclass, PB5.1a)
+PB5.2r <- portfolioSerie(mReturns, mMVclass, PB5.2a)
+PB5.3r <- portfolioSerie(mReturns, mMVclass, PB5.3a)
+PB5.4r <- portfolioSerie(mReturns, mMVclass, PB5.4a)
+PB5.5r <- portfolioSerie(mReturns, mMVclass, PB5.5a)
+
+data.frame(P1=c(mean(PB5.1r$rVW, na.rm=T),sd(PB5.1r$rVW, na.rm=T))*100,
+           P2=c(mean(PB5.2r$rVW, na.rm=T),sd(PB5.2r$rVW, na.rm=T))*100,
+           P3=c(mean(PB5.3r$rVW, na.rm=T),sd(PB5.3r$rVW, na.rm=T))*100,
+           P4=c(mean(PB5.4r$rVW, na.rm=T),sd(PB5.4r$rVW, na.rm=T))*100,
+           P5=c(mean(PB5.5r$rVW, na.rm=T),sd(PB5.5r$rVW, na.rm=T))*100,
+           row.names=c("r","DP"))
+
+rm(list=ls(pattern= "PB5.", all.names = TRUE))
+
+# === MOMENTO === =============================================================
+
+yReturns <- period.apply(mReturns,endpoints(mVolume,'years'), sum)
+yReturns <- apply.yearly(mReturns, mean)
+yReturns <- cleanData(yReturns, ySample)
+
+PL5.1a <- portfolioSelectAssets(yReturns, 5, 1)
+PL5.2a <- portfolioSelectAssets(yReturns, 5, 2) 
+PL5.3a <- portfolioSelectAssets(yReturns, 5, 3)
+PL5.4a <- portfolioSelectAssets(yReturns, 5, 4)
+PL5.5a <- portfolioSelectAssets(yReturns, 5, 5)
+PL5.1r <- portfolioSerie(mReturns, mMVclass, PL5.1a)
+PL5.2r <- portfolioSerie(mReturns, mMVclass, PL5.2a)
+PL5.3r <- portfolioSerie(mReturns, mMVclass, PL5.3a)
+PL5.4r <- portfolioSerie(mReturns, mMVclass, PL5.4a)
+PL5.5r <- portfolioSerie(mReturns, mMVclass, PL5.5a)
+
+data.frame(P1=c(mean(PL5.1r$rVW, na.rm=T),sd(PL5.1r$rVW, na.rm=T))*100,
+           P2=c(mean(PL5.2r$rVW, na.rm=T),sd(PL5.2r$rVW, na.rm=T))*100,
+           P3=c(mean(PL5.3r$rVW, na.rm=T),sd(PL5.3r$rVW, na.rm=T))*100,
+           P4=c(mean(PL5.4r$rVW, na.rm=T),sd(PL5.4r$rVW, na.rm=T))*100,
+           P5=c(mean(PL5.5r$rVW, na.rm=T),sd(PL5.5r$rVW, na.rm=T))*100,
+           row.names=c("r","DP"))
+
+rm(list=ls(pattern= "PL5.", all.names = TRUE))
 
 # === Returns === =============================================================
 
@@ -955,3 +985,30 @@ criterin <- yBookFirm[1:2,1:nAtivos] / valorzin[c(12,24),]
 # Sent.Short.Liquidity  <- lm(Short.Liquidity ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
 # Dummy.Long.Liquidity  <- lm(Long.Liquidity  ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
 # Dummy.Short.Liquidity <- lm(Short.Liquidity ~ dH+dL+MKT+SMB+HML+MOM+LIQ)
+
+# --- ANOTAÇÕES --- -----------------------------------------------------------
+# OK 1 - tratar amostra
+# OK 2 - calcular retornos
+# OK 3 - Calcular 5 carteiras p/ cada anomalia MOM, SIZ, LIQ
+#         Rebalanceamento: em JUNHO de acordo com variavel de interesse
+#         * Todos retornos mensais ponderado pelo valor de mercado
+#         Primeiras Anomalias: MOM, SIZ, LIQ (Depois BM, FC/P, L/P, ALAV)
+#         ANALIZAR RETORNO MÉDIO COM TRABALHO DE MM
+# OK 4 - Calcular BM (simples)
+# 5 - Calcular MKT
+# 7 - Comparar resultados CAPM
+#         Calcular Série Carteira de Mercado
+# 8 - Calcular FF Factors
+#         Calcular Série SMB
+#         Calcular Série HML
+# 9 - Comparar resultados FF
+# 10- Fazer todos os fatores juntos
+#         Calcular Série LIQ
+#         Calcular Série MOM
+# === === === === ===
+## Anotações:
+##   - variavel de interesse = criterio = estrategia
+##   - Fazer rotina p/ computar proxies
+## Teste replicação Marcio Machado
+
+# ------------------------------------------------------------------------------

@@ -159,7 +159,7 @@ portfolioSelectAssets <- function (V, nPort, iPort, report=F) {
     
     return(as.data.frame(Out))
 }
-PS5.1a <- portfolioSelectAssets(yMVfirmJun, 5, 1, report=T)
+
 portfolioSerie  <- function (Return, MV, A, report=FALSE) {
     
     # INPUT

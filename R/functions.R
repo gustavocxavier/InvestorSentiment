@@ -59,22 +59,13 @@ filterNo24months <- function(prices, InitialSample) {
 
 filterPositiveBook <- function(Sample, Book) {
     ##
-    ## Filtrar apenas ações com patrimonio liquido positivo
+    ## Filtrar apenas ações com patrimonio liquido positivo em n-1
     ##
     for ( i in 2:nrow(Sample)) {
         Sample[i,][( Book[(i-1),]<=0 | is.na(Book[(i-1),]) )] <- 0
     }
-    #Sample[Book<=0 | is.na(Book)] <- 0
-    #print("under construction")
+ 
     return(Sample)
-}
-
-asLogicalDataFrame <- function (df) {
-    dfOut <- apply(df, 1, function(x) as.logical(x) )
-    dfOut <- as.data.frame(t(dfOut))
-    rownames(dfOut) <- rownames(df)
-    colnames(dfOut) <- colnames(df)
-    return(dfOut)
 }
 
 #   1.2.2 Sentiment Functions - -----------------------------------------------

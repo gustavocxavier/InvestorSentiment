@@ -145,7 +145,9 @@ sampleReport(ySample0,ySample4)
 
 #== 2.3 Final Sample = ========================================================
 
-ySample <- asLogicalDataFrame(ySample4)
+# Salvar Amostra Final em um data frame lógico
+ySample <- data.frame(apply( ySample4, 2, as.logical ),
+           row.names=rownames(ySample4))
 
 ## 3. INVESTOR SENTIMENT INDEX ## #############################################
 ## 3. Índice de Sentimento

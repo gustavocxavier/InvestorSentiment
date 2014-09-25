@@ -133,45 +133,33 @@ portfolioSelectAssets <- function (V, nPort, iPort, report=F) {
     ##
     
     V <- as.matrix(V)
-    dfV <- data.frame(row.names=c("MIN", "MAX"))
-    for ( i in 1:nrow(V)) {
+    
+    # Criando matriz Out igual a matriz V porem com todos valores FALSE
+    Out <- apply(V, 2, function (x) x <- rep(FALSE, length(x)))
+    rownames(Out)=rownames(V)
+    Report <- data.frame(row.names=c("MIN", "MAX"))
         
-        # Calculando Faixa de Valores da Variavel de Interesse
+    for ( i in 1:nrow(V)) {
         x <- c(0,seq(1:nPort)/nPort) # Sequencia de todos os quantis
         RANGE <- quantile(V[i,], x[iPort:(iPort+1)], na.rm=T) # Valor max e min
-        if ( !is.na(RANGE[1]) ) {
-            dfV <- (cbind(dfV, RANGE))
-            # Selecionando ativos que estao na faixa de interesse naquele ano
-            dCriterio <- V[i,] %between% RANGE
-            dCriterio[is.na(dCriterio)] <- FALSE
-            
-            # ADICIONAR A UM DATA FRAME
-            if ( !exists("Out") ) {
-                # SE FOR A TABELA NAO EXISTE, CRIA
-                Out <- dCriterio
-            } else { # SE EXISTE, APENAS ADICIONAR LINHAS
-                Out <- rbind(Out,
-                                         dCriterio)
-            }
+        Report <- (cbind(Report, RANGE)) # Adicionar o RANGE ao relatorio
+        if ( !is.na(RANGE[1]) ) { # Verifica "RANGE = valores validos"
+            # Valores no RANGE, atribuir TRUE. Fora do RANGE, atribui FALSE
+            Out[i,] <- V[i,] %between% RANGE
+            Out[i,][is.na(Out[i,])] <- FALSE # Valores NA, atribuir FALSE
         }
     }
     
     if ( report == T ) {
-        colnames(dfV) <- substr(rownames(V), 1, 4)[1:ncol(dfV)]
-        dfV <- rbind(dfV,QTD=rowSums(Out))
+        colnames(Report) <- substr(rownames(V), 1, 4)[1:ncol(Report)]
+        Report <- rbind(Report,QTD=rowSums(Out))
         cat(paste(iPort,"º portfolio dos ", nPort,".\n", sep=""))
-        print(t(as.matrix(dfV)))
+        print(t(as.matrix(Report)))
     }
     
-    #     Out[is.na(Out)] <- 0
-    rownames(Out) <- rownames(V)
     return(as.data.frame(Out))
-    # Anotações:
-    # constructPortfolio <- function (strategy, nPortfolios, iPortfolio) {}
-    # rebalancedPortfolios <- function ()
-    # SelectStockBaskets <- function (strategy, nPort, iPort) {}
 }
-
+PS5.1a <- portfolioSelectAssets(yMVfirmJun, 5, 1, report=T)
 portfolioSerie  <- function (Return, MV, A, report=FALSE) {
     
     # INPUT
@@ -306,12 +294,20 @@ portfolioSerie  <- function (Return, MV, A, report=FALSE) {
 #      cat("rLong, mvLong, rShort, mvShort")
 # }
 
-cleanData <- function(yData,Sample) {
-    # Atribui NA em todos os valores yData em n-1 qnd Sample em n for FALSE
-    yData[-nrow(yData),][(Sample[-1,]==F)] <- NA
-    # Atribui NA em todos os valores yData no ultimo ano
-    yData[ nrow(yData),] <- NA
+cleanData <- function(yData, Sample, LAG=0) {
+    if ( LAG == 0 ) {
+        # Atribui NA em todos os valores yData em n qnd Sample em n for FALSE
+        yData[(Sample==F)] <- NA
+        # Atribui NA em todos os valores yData no ultimo ano
+        yData[nrow(yData),] <- NA
+    } else if ( LAG == 1 ) {
+        # Atribui NA em todos os valores yData em n-1 qnd Sample em n for FALSE
+        yData[-nrow(yData),][(Sample[-1,]==F)] <- NA
+    } else if ( LAG != 0 & 1 ) { print("Valores validos para LAG sao 1 ou 0")}
     return(yData)
 }
 
-## Definindo Parametros / Setting Parameters
+
+# constructPortfolio <- function (strategy, nPortfolios, iPortfolio) {}
+# rebalancedPortfolios <- function ()
+# SelectStockBaskets <- function (strategy, nPort, iPort) {}

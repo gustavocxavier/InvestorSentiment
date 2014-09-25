@@ -132,14 +132,14 @@ portfolioSelectAssets <- function (V, nPort, iPort, report=F) {
     ## iPort ... Portfolio de interesse
     ##
     
-    V <- as.data.frame(V)
+    V <- as.matrix(V)
     dfV <- data.frame(row.names=c("MIN", "MAX"))
     for ( i in 1:nrow(V)) {
         
         # Calculando Faixa de Valores da Variavel de Interesse
         x <- c(0,seq(1:nPort)/nPort) # Sequencia de todos os quantis
         RANGE <- quantile(V[i,], x[iPort:(iPort+1)], na.rm=T) # Valor max e min
-        YEAR  <- substr(rownames(as.data.frame(V)[i,]), 1, 4)
+        YEAR  <- substr(rownames(V[i,]), 1, 4)
         if ( !is.na(RANGE[1]) ) {
             dfV <- (cbind(dfV, RANGE))
             # Selecionando ativos que estao na faixa de interesse naquele ano
@@ -161,7 +161,7 @@ portfolioSelectAssets <- function (V, nPort, iPort, report=F) {
     #rownames(dfV) <- substr(rownames(V), 1, 4)
     
     if ( report == T ) {
-        colnames(dfV) <- substr(rownames(as.data.frame(V)), 1, 4)[1:ncol(dfV)]
+        colnames(dfV) <- substr(rownames(V), 1, 4)[1:ncol(dfV)]
         dfV <- rbind(dfV,QTD=rowSums(dCriterioMatrix))
         cat(paste(iPort,"º portfolio dos ", nPort,".\n", sep=""))
         print(t(as.matrix(dfV)))

@@ -40,10 +40,9 @@ PERIOD.XTS   <- "2000-06/2014-07"     # Periodo / Period
 ## Rodar Minhas Funçoes / Run my functions
 source("R/functions.R")
 
-
 ## 2. GET DATA AND CLEAN ## ##################################################
-## Get Data and Clean
-## Carregar e limpar dados
+
+# Carregar e limpar dados / Get Data and Clean
 
 #== 2.1 Read Data = ==========================================================
 
@@ -52,6 +51,7 @@ mPrices            <- read.table ("Input/mPrices.csv", header = T, sep=";",
                                   dec=",", skip=0, row.names=1, na.strings="-",
                                   stringsAsFactors=F)
 row.names(mPrices) <- as.Date(row.names(mPrices), format="%d/%m/%Y")
+
 # Filtrando Periodo
 mPrices.xts        <- as.xts(mPrices, descr="MONTHLY PRICES")[PERIOD.XTS]
 mPrices            <- data.frame(as.matrix(mPrices.xts)) ; rm(mPrices.xts)
@@ -146,8 +146,6 @@ sampleReport(ySample0,ySample4)
 #== 2.3 Final Sample = ========================================================
 
 ySample <- asLogicalDataFrame(ySample4)
-
-
 
 ## 3. INVESTOR SENTIMENT INDEX ## #############################################
 ## 3. Índice de Sentimento

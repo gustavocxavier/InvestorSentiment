@@ -296,17 +296,18 @@ Sent <- PCAstep3$x[,"PC1"]
 ##       (COMPARAR FF COM MM)
 ## 4.2.4 Serie de retorno dos demais fatores (MOM, LIQ)
 
-mPrices.xts <- as.xts(mPrices)
-mReturns <- diff(log(mPrices.xts), lag=1) # Compute Logarithmic Returns
+# Compute Logarithmic Returns
+pXTS <- as.xts(mPrices)
+mReturns <- as.data.frame( diff(log(pXTS), lag=1) ) ; rm(pXTS)
 
-#== TAMANHO === =============================================================
+#== TAMANHO === ===============================================================
 
 yMVfirmJun <- cleanData(yMVfirmJun, ySample)
 
 PS5.1a <- portfolioSelectAssets(yMVfirmJun, 5, 1, report=T)
-PS5.2a <- portfolioSelectAssets(yMVfirmJun, 5, 2, report=F) 
-PS5.3a <- portfolioSelectAssets(yMVfirmJun, 5, 3, report=F)
-PS5.4a <- portfolioSelectAssets(yMVfirmJun, 5, 4, report=F)
+PS5.2a <- portfolioSelectAssets(yMVfirmJun, 5, 2, report=T) 
+PS5.3a <- portfolioSelectAssets(yMVfirmJun, 5, 3, report=T)
+PS5.4a <- portfolioSelectAssets(yMVfirmJun, 5, 4, report=T)
 PS5.5a <- portfolioSelectAssets(yMVfirmJun, 5, 5, report=T)
 
 # Valor de Mercado da Classe para ponderacao

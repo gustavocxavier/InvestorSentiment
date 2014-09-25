@@ -158,7 +158,6 @@ portfolioSelectAssets <- function (V, nPort, iPort, report=F) {
             }
         }
     }
-    #rownames(dfV) <- substr(rownames(V), 1, 4)
     
     if ( report == T ) {
         colnames(dfV) <- substr(rownames(V), 1, 4)[1:ncol(dfV)]
@@ -171,7 +170,7 @@ portfolioSelectAssets <- function (V, nPort, iPort, report=F) {
     
     #     # Transformar data (exemplo "1995-06-01" para "1995")
     #     rownames(dCriterioMatrix) <- substr(rownames(dCriterioMatrix), 1, 4)
-    
+    rownames(dCriterioMatrix) <- rownames(V)
     return(as.data.frame(dCriterioMatrix))
     # Anotações:
     # constructPortfolio <- function (strategy, nPortfolios, iPortfolio) {}

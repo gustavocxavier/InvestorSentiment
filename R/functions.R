@@ -220,24 +220,38 @@ portfolioSerie  <- function (Returns, Values, Assets) {
     # ______________________________________________________________
 }
 
-#---- allQuintiles --- --- ---
-# allQuintiles <- function (V, nPort, R, MV) {
-#     
-#     ## ______________________________________________________________
-#     ##
-#     ## Imprime Média e Retorna a Série de todos os Portfolios
-#     ##
-#     ## ARGUMENTS:
-#     ## V     ... Variavel de Interesse(criterio/caracteristica).
-#     ## nPort ... Número de portfolios
-#     ## R ....... Matriz de Retornos
-#     ## MV ...... Matriz com os Valores de Mercado
-#     ## ______________________________________________________________
-#     for ( i in 1:nPort ) {
-#         portfolioSerie(R, MV, portfolioSelectAssets(V, nPort, i))
-#     }
-#     ## imprimir valores medios e desvio padrão
-# }
+allQuintiles <- function (Criterion, Return, Value) {
+    
+    ## ______________________________________________________________
+    ##
+    ## Imprime Média e Retorna a Série de todos os Portfolios
+    ##
+    ## ARGUMENTS:
+    ## Criterion ... Variavel de Interesse(criterio/caracteristica).
+    ## Return ...... Matriz de Retornos
+    ## Value ....... Matriz com os Valores de Mercado
+    ## ______________________________________________________________
+    P1A <- portfolioSelectAssets(Criterion, 5, 1)
+    P2A <- portfolioSelectAssets(Criterion, 5, 2) 
+    P3A <- portfolioSelectAssets(Criterion, 5, 3)
+    P4A <- portfolioSelectAssets(Criterion, 5, 4)
+    P5A <- portfolioSelectAssets(Criterion, 5, 5)
+    
+    P1R <- portfolioSerie(Return, Value, P1A)
+    P2R <- portfolioSerie(Return, Value, P2A)
+    P3R <- portfolioSerie(Return, Value, P3A)
+    P4R <- portfolioSerie(Return, Value, P4A)
+    P5R <- portfolioSerie(Return, Value, P5A)
+    
+    P1=c(mean(P1R$rVW), sd(P1R$rVW), mean(P1R$rEW), sd(P1R$rEW))*100
+    P2=c(mean(P2R$rVW), sd(P2R$rVW), mean(P2R$rEW), sd(P2R$rEW))*100
+    P3=c(mean(P3R$rVW), sd(P3R$rVW), mean(P3R$rEW), sd(P3R$rEW))*100
+    P4=c(mean(P4R$rVW), sd(P4R$rVW), mean(P4R$rEW), sd(P4R$rEW))*100
+    P5=c(mean(P5R$rVW), sd(P5R$rVW), mean(P5R$rEW), sd(P5R$rEW))*100
+    
+    data.frame(cbind(P1,P2,P3,P4,P5),
+               row.names=c("VW r", "VW sd", "EW r", "EW sd"))
+}
 
 # ---- LongShortSeries --- --- ---
 # LongShortSeries    <- function (strategy, nPortfolios, RET, MV) {

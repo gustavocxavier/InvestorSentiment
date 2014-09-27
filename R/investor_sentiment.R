@@ -30,6 +30,9 @@
 if ( !( "xts" %in% installed.packages() ) ) { install.packages("xts") }
 library(xts)
 
+if ( !( "lubridate" %in% installed.packages() ) ) { install.packages("lubridate") }
+library(lubridate)
+
 ## Definir Parametros / Set Parameters
 setwd("C:/Dropbox/investorSentiment") # Pasta de Trabalho / Working Directory
 START        <- as.Date("2000-06-01") # Data Inicial / Initial Date
@@ -304,12 +307,6 @@ mReturns <- as.data.frame( diff(log(pXTS), lag=1) ) ; rm(pXTS)
 
 yMVfirmJun <- cleanData(yMVfirmJun, ySample)
 
-PS5.1a <- portfolioSelectAssets(yMVfirmJun, 5, 1, report=T)
-PS5.2a <- portfolioSelectAssets(yMVfirmJun, 5, 2, report=T) 
-PS5.3a <- portfolioSelectAssets(yMVfirmJun, 5, 3, report=T)
-PS5.4a <- portfolioSelectAssets(yMVfirmJun, 5, 4, report=T)
-PS5.5a <- portfolioSelectAssets(yMVfirmJun, 5, 5, report=T)
-
 # Valor de Mercado da Classe para ponderacao
 mMVclass <- read.table ("Input/mMarketValue.csv", header = T, sep=";", dec=",",
                         skip=1, row.names=1, na.strings="-", stringsAsFactors=F)
@@ -319,20 +316,7 @@ rownames(mMVclass) <- as.Date(rownames(mMVclass),"%d/%m/%Y")
 mMVclass.xts <- as.xts(mMVclass, descr="MONTHLY PRICES")[PERIOD.XTS]
 mMVclass     <- data.frame(as.matrix(mMVclass.xts)) ; rm(mMVclass.xts)
 
-PS5.1r <- portfolioSerie(mReturns, mMVclass, PS5.1a)
-PS5.2r <- portfolioSerie(mReturns, mMVclass, PS5.2a)
-PS5.3r <- portfolioSerie(mReturns, mMVclass, PS5.3a)
-PS5.4r <- portfolioSerie(mReturns, mMVclass, PS5.4a)
-PS5.5r <- portfolioSerie(mReturns, mMVclass, PS5.5a, T)
-
-data.frame(P1=c(mean(PS5.1r$rVW, na.rm=T),sd(PS5.1r$rVW, na.rm=T))*100,
-           P2=c(mean(PS5.2r$rVW, na.rm=T),sd(PS5.2r$rVW, na.rm=T))*100,
-           P3=c(mean(PS5.3r$rVW, na.rm=T),sd(PS5.3r$rVW, na.rm=T))*100,
-           P4=c(mean(PS5.4r$rVW, na.rm=T),sd(PS5.4r$rVW, na.rm=T))*100,
-           P5=c(mean(PS5.5r$rVW, na.rm=T),sd(PS5.5r$rVW, na.rm=T))*100,
-           row.names=c("r","DP"))
-
-rm(list=ls(pattern= "PS5.", all.names = TRUE))
+allQuintiles(yMVfirmJun, mReturns, mMVclass)
 
 #--- Testando c/ MV class ----------------------------------------------------
 # Cria matriz apenas com os valores de Dez e apenas com valores de Jun
@@ -340,24 +324,7 @@ yMVclassJun <- mMVclass[(months(as.Date(rownames(mMVclass)), T)=="jun"),]
 # yMVclassDez <- mMVclass[(months(as.Date(rownames(mMVclass)), T)=="dez"),]
 yMVclassJun <- cleanData(yMVclassJun, ySample)
 
-PS5.1a <- portfolioSelectAssets(yMVclassJun, 5, 1, report=T)
-PS5.2a <- portfolioSelectAssets(yMVclassJun, 5, 2, report=F) 
-PS5.3a <- portfolioSelectAssets(yMVclassJun, 5, 3, report=F)
-PS5.4a <- portfolioSelectAssets(yMVclassJun, 5, 4, report=F)
-PS5.5a <- portfolioSelectAssets(yMVclassJun, 5, 5, report=T)
-
-PS5.1r <- portfolioSerie(mReturns, mMVclass, PS5.1a)
-PS5.2r <- portfolioSerie(mReturns, mMVclass, PS5.2a)
-PS5.3r <- portfolioSerie(mReturns, mMVclass, PS5.3a)
-PS5.4r <- portfolioSerie(mReturns, mMVclass, PS5.4a)
-PS5.5r <- portfolioSerie(mReturns, mMVclass, PS5.5a)
-
-data.frame(P1=c(mean(PS5.1r$rVW, na.rm=T),sd(PS5.1r$rVW, na.rm=T))*100,
-           P2=c(mean(PS5.2r$rVW, na.rm=T),sd(PS5.2r$rVW, na.rm=T))*100,
-           P3=c(mean(PS5.3r$rVW, na.rm=T),sd(PS5.3r$rVW, na.rm=T))*100,
-           P4=c(mean(PS5.4r$rVW, na.rm=T),sd(PS5.4r$rVW, na.rm=T))*100,
-           P5=c(mean(PS5.5r$rVW, na.rm=T),sd(PS5.5r$rVW, na.rm=T))*100,
-           row.names=c("r","DP"))
+allQuintiles(yMVclassJun, mReturns, mMVclass)
 
 # /// THE END ///
 
@@ -375,50 +342,14 @@ mVolume     <- data.frame(as.matrix(mVolume.xts)) ; rm(mVolume.xts)
 
 yVolume            <- cleanData(yVolume,    ySample)
 
-PL5.1a <- portfolioSelectAssets(yVolume, 5, 1)
-PL5.2a <- portfolioSelectAssets(yVolume, 5, 2) 
-PL5.3a <- portfolioSelectAssets(yVolume, 5, 3)
-PL5.4a <- portfolioSelectAssets(yVolume, 5, 4)
-PL5.5a <- portfolioSelectAssets(yVolume, 5, 5)
-PL5.1r <- portfolioSerie(mReturns, mMVclass, PL5.1a)
-PL5.2r <- portfolioSerie(mReturns, mMVclass, PL5.2a)
-PL5.3r <- portfolioSerie(mReturns, mMVclass, PL5.3a)
-PL5.4r <- portfolioSerie(mReturns, mMVclass, PL5.4a)
-PL5.5r <- portfolioSerie(mReturns, mMVclass, PL5.5a)
-
-data.frame(P1=c(mean(PL5.1r$rVW, na.rm=T),sd(PL5.1r$rVW, na.rm=T))*100,
-           P2=c(mean(PL5.2r$rVW, na.rm=T),sd(PL5.2r$rVW, na.rm=T))*100,
-           P3=c(mean(PL5.3r$rVW, na.rm=T),sd(PL5.3r$rVW, na.rm=T))*100,
-           P4=c(mean(PL5.4r$rVW, na.rm=T),sd(PL5.4r$rVW, na.rm=T))*100,
-           P5=c(mean(PL5.5r$rVW, na.rm=T),sd(PL5.5r$rVW, na.rm=T))*100,
-           row.names=c("r","DP"))
-
-rm(list=ls(pattern= "PL5.", all.names = TRUE))
+allQuintiles(yVolume, mReturns, mMVclass)
 
 #== BM === ==================================================================
 # TO DO: Calcular BM da classe
 
-yBM <- yBookFirm / yMVfirmDez
-
-PB5.1a <- portfolioSelectAssets(yBM, 5, 1)
-PB5.2a <- portfolioSelectAssets(yBM, 5, 2) 
-PB5.3a <- portfolioSelectAssets(yBM, 5, 3)
-PB5.4a <- portfolioSelectAssets(yBM, 5, 4)
-PB5.5a <- portfolioSelectAssets(yBM, 5, 5)
-PB5.1r <- portfolioSerie(mReturns, mMVclass, PB5.1a)
-PB5.2r <- portfolioSerie(mReturns, mMVclass, PB5.2a)
-PB5.3r <- portfolioSerie(mReturns, mMVclass, PB5.3a)
-PB5.4r <- portfolioSerie(mReturns, mMVclass, PB5.4a)
-PB5.5r <- portfolioSerie(mReturns, mMVclass, PB5.5a)
-
-data.frame(P1=c(mean(PB5.1r$rVW, na.rm=T),sd(PB5.1r$rVW, na.rm=T))*100,
-           P2=c(mean(PB5.2r$rVW, na.rm=T),sd(PB5.2r$rVW, na.rm=T))*100,
-           P3=c(mean(PB5.3r$rVW, na.rm=T),sd(PB5.3r$rVW, na.rm=T))*100,
-           P4=c(mean(PB5.4r$rVW, na.rm=T),sd(PB5.4r$rVW, na.rm=T))*100,
-           P5=c(mean(PB5.5r$rVW, na.rm=T),sd(PB5.5r$rVW, na.rm=T))*100,
-           row.names=c("r","DP"))
-
-rm(list=ls(pattern= "PB5.", all.names = TRUE))
+# yBM <- yBookFirm / yMVfirmDez
+# 
+# allQuintiles(yBM, mReturns, mMVclass)
 
 #== MOMENTO === =============================================================
 
@@ -426,25 +357,7 @@ yReturns <- period.apply(mReturns,endpoints(mVolume,'years'), sum)
 yReturns <- apply.yearly(mReturns, mean)
 yReturns <- cleanData(yReturns, ySample)
 
-PL5.1a <- portfolioSelectAssets(yReturns, 5, 1)
-PL5.2a <- portfolioSelectAssets(yReturns, 5, 2) 
-PL5.3a <- portfolioSelectAssets(yReturns, 5, 3)
-PL5.4a <- portfolioSelectAssets(yReturns, 5, 4)
-PL5.5a <- portfolioSelectAssets(yReturns, 5, 5)
-PL5.1r <- portfolioSerie(mReturns, mMVclass, PL5.1a)
-PL5.2r <- portfolioSerie(mReturns, mMVclass, PL5.2a)
-PL5.3r <- portfolioSerie(mReturns, mMVclass, PL5.3a)
-PL5.4r <- portfolioSerie(mReturns, mMVclass, PL5.4a)
-PL5.5r <- portfolioSerie(mReturns, mMVclass, PL5.5a)
-
-data.frame(P1=c(mean(PL5.1r$rVW, na.rm=T),sd(PL5.1r$rVW, na.rm=T))*100,
-           P2=c(mean(PL5.2r$rVW, na.rm=T),sd(PL5.2r$rVW, na.rm=T))*100,
-           P3=c(mean(PL5.3r$rVW, na.rm=T),sd(PL5.3r$rVW, na.rm=T))*100,
-           P4=c(mean(PL5.4r$rVW, na.rm=T),sd(PL5.4r$rVW, na.rm=T))*100,
-           P5=c(mean(PL5.5r$rVW, na.rm=T),sd(PL5.5r$rVW, na.rm=T))*100,
-           row.names=c("r","DP"))
-
-rm(list=ls(pattern= "PL5.", all.names = TRUE))
+allQuintiles(yReturns, mReturns, mMVclass)
 
 #== Returns === =============================================================
 

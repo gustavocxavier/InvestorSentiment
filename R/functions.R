@@ -160,99 +160,54 @@ portfolioSelectAssets <- function (V, nPort, iPort, report=F) {
     return(as.data.frame(Out))
 }
 
-portfolioSerie  <- function (Return, MV, A, report=FALSE) {
+portfolioSerie  <- function (Returns, Values, Assets) {
     
     # INPUT
     # _________________________________________________________________
     #
     # Return .... Matriz de Retornos (Returns)
-    # MV ... Matriz com os Valores de Mercado (MarketValues)
-    # A .... Matriz de ativos pertecentes ao Portfolio (SelectedStocks)
+    # Values .... Matriz com os Valores de Mercado (MarketValues)
+    # Assets .... Matriz de ativos pertecentes ao Portfolio (SelectedStocks)
     # _________________________________________________________________
     
-    # Criando Matriz Indice de Data
-    createDateIndex <- function() {
-        # Função que cria índice de data
-        # Criando de uma matriz mapa de datas
-        matriz_indice <- data.frame(Date=seq(from=START,to=END,by="month"))
+    require(lubridate)
+    
+    M <- as.numeric(substr(rownames(Returns),6,7)) # meses
+    # M <- month(as.Date(rownames(Returns))) # c/ lubridate (+ elegante)
+    n <- (seq(M))[M==7][2]                         # segundo JULHO
+    N <- sort(seq(M)[M==6], decreasing = T)[2]     # penultimo JUNHO
+    
+    rDate <- as.Date(rownames(Returns[n:(N-6),]))
+    aDate <- as.Date(rownames(Assets))
+    
+    # Verificar se utiliza ano presente, ou dados do ano anterior
+    if ( month(aDate)[1] < 7 ) { # utilizar n
+        assetYears <- year(aDate) %between% (year(rDate)) 
+    } else {                     # utilizar n-1
+        assetYears <- year(aDate) %between% (year(rDate)-1) 
+    }
+    
+    Returns <- Returns[n:N,] # Apenas meses de JULHO/ano1 a JUNHO/ano
+    Values <- Values[n:N,] # Apenas meses de JULHO/ano1 a JUNHO/ano
+    
+    Assets <- Assets[assetYears, ] # Apenas os anos utilizados para o calculo
+    
+    # Deixando matrizes de ativos e de retornos do mesmo tamnho
+    RepeatAssets <- nrow(Returns)/nrow(Assets)
+    Assets <- Assets[rep(seq_len(nrow(Assets)), each=RepeatAssets),]
+    
+    # Transpondo matrizes e tansfromando em data.frame p/ usar as func. apply
+    A <- as.data.frame(t(Assets))
+    R <- as.data.frame(t(Returns))
+    V <- as.data.frame(t(Values))
+    
+    rEW <- mapply( function(x,y) mean(x[y]), R, A )
+    rVW <- mapply( function(x,y,z) { sum(x[z]*y[z]/sum(y[z])) }, R, V, A )
+    MV  <- mapply( function(x,y) { sum(x[y]) }, V, A )
+    nA  <- sapply( A, sum)
+    
+    as.data.frame(cbind(rEW, rVW, MV, nA))
         
-        matriz_indice <- cbind(matriz_indice,
-                               M=as.numeric(substr(as.character(matriz_indice$Date),6,7)),
-                               Y=as.numeric(substr(as.character(matriz_indice$Date),1,4)),
-                               Q=as.numeric(substr(quarters(matriz_indice$Date),2,2))
-        )
-        matriz_indice <- cbind(matriz_indice,
-                               Quarter=paste(matriz_indice$Q, "T", matriz_indice$Y, sep = ""),
-                               nM = seq(1:length(matriz_indice$Date)),
-                               nY = matriz_indice$Y+1-as.numeric(substr(as.character(START),1,4)),
-                               nQ = sort(rep(1:ceiling(nrow(matriz_indice)/4),4))[1:nrow(matriz_indice)]
-        )
-        # inidice para selecao dos ativos do portfolio
-        j2   <- matriz_indice$nM[matriz_indice$M==7][2] # Segundo julho da amostra
-        Pn   <- sort(rep(1:ceiling(nrow(matriz_indice)/12),12))[1:nrow(matriz_indice)]
-        Pn_1 <- c(rep(NA, j2-1), Pn[(1:(nrow(matriz_indice)-j2+1))] ) # n-1
-        Pn0  <- Pn_1 + 1 # Indice p/ dados em n
-        Pn   <- Pn0
-        matriz_indice <- cbind(matriz_indice, Pn, Pn0, Pn_1)
-        return(matriz_indice)
-    }
-    dateIndex <- createDateIndex()
-    
-    n <- dateIndex$nM[dateIndex$M==7][2] # Segundo julho da amostra
-    # sort(dateIndex$nM[(dateIndex$M==5)], decreasing=T)[2] # Penultimo maio
-    N <- nrow(Return)
-    
-    # Verificar se matriz A é com base em dados anteriores a jun (mes 6)
-    if ( as.numeric(substr(rownames(A)[2], 6, 7)) <= 6 ) {
-        # Baseado no ano n
-        dateIndex$Pn <- dateIndex$Pn0
-    } else {
-        # Baseado no ano n-1
-        dateIndex$Pn <- dateIndex$Pn_1        
-    }
-    
-    Return <- as.matrix(Return) # Transformando numa matriz pra subset
-    
-    for (i in n:N) {
-        if ( dateIndex$Pn[i] <= nrow(A) ) {
-            
-            # Cria vetor que diz qual ativo pertence à carteira
-            ASSETS <- as.logical(A[dateIndex$Pn[i],])
-            
-            # Valor de Mercado total dos ativos da carteira
-            marketVALUE  <- sum(MV[i,ASSETS], na.rm=T)
-            
-            # Quantidade de ativos na carteira
-            nA  <- sum(as.numeric(ASSETS))
-            
-            # Media igualmente ponderada do retorno dos ativos da carteira
-            rEW <- mean(Return[i,ASSETS], na.rm=T)
-            
-            # Media ponderada pelo valor do retorno dos ativos da carteira
-            rVW <- sum (Return[i,ASSETS] * MV[i,ASSETS] / marketVALUE, na.rm=T)
-            
-        } else {
-            # Valores n existem
-            marketVALUE  <- NA
-            nA           <- NA
-            rEW          <- NA
-            rVW          <- NA
-            
-        }
-        if ( !exists("pSerie") ) {
-            # SE FOR A TABELA NAO EXISTE, CRIA
-            pSerie <- data.frame(rEW=rEW,
-                                 rVW=rVW,
-                                 MV=marketVALUE,
-                                 nA=nA)
-        } else { # SE EXISTE, APENAS ADICIONAR LINHAS
-            pSerie <- rbind(pSerie,c(rEW,
-                                     rVW,
-                                     marketVALUE,
-                                     nA))
-        }
-    }
-    
     # ______________________________________________________________
     #
     #  OUTPUT
@@ -263,11 +218,6 @@ portfolioSerie  <- function (Return, MV, A, report=FALSE) {
     # MV .... Valor de Mercado da carteira no período
     # nA .... Número de ativos da carteira no período
     # ______________________________________________________________
-    
-    rowNames <- rownames(as.data.frame(Return))[n:N]
-    rownames(pSerie) <- rowNames
-    if ( report == T ) { print(summary(pSerie)) }
-    return(pSerie)
 }
 
 #---- allQuintiles --- --- ---

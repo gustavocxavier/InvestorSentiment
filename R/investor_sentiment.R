@@ -23,6 +23,8 @@
 ## - FILTRO Bovespa Negociability Index
 ## - FAZER UM FILTRO DE DATA PRA mProxies em breve
 
+#' 
+
 ## 1. SETTINGS ## #############################################################
 
 ## Instalar e carregar bibliotecas / Install and load packages
@@ -92,7 +94,7 @@ ySample3[!is.na(ySample3)] <- 1 # Atribui temporariamente 1 a todos os campos
 
 # Atribui 0 para os valores que nao satisfazem a condicao desejada em jun/n
 ySample3[is.na(yNegociab)]   <- 0 # Valores invexistentes em jun na base
-ySample3[(yNegociab < 0.01)] <- 0 # Valores abaixo de 0.01 em jun na base
+ySample3[(yNegociab < 0.001)] <- 0 # Valores abaixo de 0.01 em jun na base
 
 ySample3 <- ySample3 * ySample2 # Interagem com atendem ao filtro anterior
 
@@ -253,18 +255,19 @@ screeplot(PCAstep3, type="line", main="Scree Plot Sentimento Ortogonalizado")
 PCAstep3$rotation[,"PC1"] * (-1) # Equacao do Indice de Sent. Ortogonalizado
 Sent <- PCAstep3$x[,"PC1"]
 
-#== 3.5 Sentiment Results = ===================================================
-# as.dist(round(cor(mProxies),2))                      # Verificando correlação entre as proxies
-# round(cor(PCAstep1$x[,"PC1"],mProxies),2)            # Correlação das Proxies com 1ª Componente da 1ª Etapa
-# round(cor(PCAstep1$x[,"PC1"],mBestProxies),2)        # Correlação Proxies Escolhidas c/ 1ª Componente da 1ª Etapa
-# cor(PCAstep1$x[,"PC1"],PCAstep2$x[,"PC1"]) * (-1)    # Verificando correlacao com o primeiro indice
-# summary(PCAstep2)                                    # Percentual explicado da variancia
-# PCAstep2$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Nao Ortogonalizado
-# as.dist(round(cor(mBestProxies),2))                  # Correlação Proxies Escolhidas
-# round(cor(PCAstep2$x[,"PC1"],mBestProxies),2) * (-1) # Correlação Proxies Escolhidas c/ 1ª Componente da 2ª Etapa
-# cor(PCAstep2$x[,"PC1"],PCAstep3$x[,"PC1"])           # Correlação do Indice da 3ª etapa com o da 2ª etapa
-# summary(PCAstep3)                                    # Percentual explicado da variancia
-# PCAstep3$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Ortogonalizado
+# Resultados Indice de Sentimento
+
+as.dist(round(cor(mProxies),2))                      # Verificando correlação entre as proxies
+round(cor(PCAstep1$x[,"PC1"],mProxies),2)            # Correlação das Proxies com 1ª Componente da 1ª Etapa
+round(cor(PCAstep1$x[,"PC1"],mBestProxies),2)        # Correlação Proxies Escolhidas c/ 1ª Componente da 1ª Etapa
+cor(PCAstep1$x[,"PC1"],PCAstep2$x[,"PC1"]) * (-1)    # Verificando correlacao com o primeiro indice
+summary(PCAstep2)                                    # Percentual explicado da variancia
+PCAstep2$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Nao Ortogonalizado
+as.dist(round(cor(mBestProxies),2))                  # Correlação Proxies Escolhidas
+round(cor(PCAstep2$x[,"PC1"],mBestProxies),2) * (-1) # Correlação Proxies Escolhidas c/ 1ª Componente da 2ª Etapa
+cor(PCAstep2$x[,"PC1"],PCAstep3$x[,"PC1"])           # Correlação do Indice da 3ª etapa com o da 2ª etapa
+summary(PCAstep3)                                    # Percentual explicado da variancia
+PCAstep3$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Ortogonalizado
 
 # ## 4. INVESTOR SENTIMENT AND ANOMALIES ## 
 # ## Sentimento do Investidor e Anomalias

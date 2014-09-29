@@ -1,4 +1,3 @@
-##
 ## Title: Investor Sentiment and Anomalies in Brazilian Market
 ##
 ## Version: 0.0.1
@@ -76,18 +75,28 @@ ySample1 <- filterNoFinancial(ySample0, "Input/dbStocks.csv")
 ySample2 <- filterNo24months(mPrices, ySample0) * ySample1
 
 #   2.2.3 Filtro Bovespa Negociability Index - --------------------------------
-# TODO: FILTRO Bovespa Negociability Index
-# mNegociabilidade <- importaBaseCSV("Input/mNegociabilidade.csv", START, END)
-# 
-# # Convert monthly to yearly
-# yNegociabilidade <- mNegociabilidade[dateIndex$M==12,]
-# row.names(yNegociabilidade) <- dateIndex$Y[dateIndex$M==12]
-# 
-# # Liquidity filter by negociability index
-# ySampleNegociab <- ySample0
-# ySampleNegociab[yNegociabilidade <= 0.01] <- 0
 
-#   2.2.3 Filtro Valor de Mercado em 30/06 e 31/12 - --------------------------
+mNegociab <- read.table ("Input/mNegociabilidade.csv", header = T, sep=";",
+                         dec=",", skip=0, row.names=1, na.strings="-",
+                         stringsAsFactors=F)
+rownames(mNegociab) <- as.Date(rownames(mNegociab),"%d/%m/%Y")
+
+# Filtrando Periodo
+mNegociab.xts <- as.xts(mNegociab)[PERIOD.XTS]
+mNegociab     <- data.frame(as.matrix(mNegociab.xts)); rm(mNegociab.xts)
+
+yNegociab <- mNegociab[(months(as.Date(rownames(mNegociab)), T)=="jun"),]
+
+ySample3 <- ySample2 # Cria matriz de controle da amostra a partir da ultima
+ySample3[!is.na(ySample3)] <- 1 # Atribui temporariamente 1 a todos os campos
+
+# Atribui 0 para os valores que nao satisfazem a condicao desejada em jun/n
+ySample3[is.na(yNegociab)]   <- 0 # Valores invexistentes em jun na base
+ySample3[(yNegociab < 0.01)] <- 0 # Valores abaixo de 0.01 em jun na base
+
+ySample3 <- ySample3 * ySample2 # Interagem com atendem ao filtro anterior
+
+#   2.2.4 Filtro Valor de Mercado em 30/06 e 31/12 - --------------------------
 
 # Read Market Value of the Firm
 mMVfirm <- read.table ("Input/mMarketValueFirm.csv", header = T, sep=";", dec=",",
@@ -101,20 +110,20 @@ mMVfirm     <- data.frame(as.matrix(mMVfirm.xts)); rm(mMVfirm.xts)
 yMVfirmJun <- mMVfirm[(months(as.Date(rownames(mMVfirm)), T)=="jun"),]
 yMVfirmDez <- mMVfirm[(months(as.Date(rownames(mMVfirm)), T)=="dez"),]
 
-ySample3 <- ySample2 # Cria matriz de controle da amostra a partir da ultima
-ySample3[!is.na(ySample3)] <- 1 # Atribui temporariamente 1 a todos os campos
+ySample4 <- ySample3 # Cria matriz de controle da amostra a partir da ultima
+ySample4[!is.na(ySample3)] <- 1 # Atribui temporariamente 1 a todos os campos
 
 # Atribui 0 para os valores que nao satisfazem a condicao desejada em dez/n-1
-ySample3[-1,][yMVfirmDez <= 0]   <- 0 # Valores zerados em dez/n-1 na base
-ySample3[-1,][is.na(yMVfirmDez)] <- 0 # Valores invexistentes em dez/n-1 na base
+ySample4[-1,][yMVfirmDez <= 0]   <- 0 # Valores zerados em dez/n-1 na base
+ySample4[-1,][is.na(yMVfirmDez)] <- 0 # Valores invexistentes em dez/n-1 na base
 
 # Atribui 0 para os valores que nao satisfazem a condicao desejada em jun/n
-ySample3[(yMVfirmJun <= 0)] <- 0 # Valores zerados em jun na base
-ySample3[is.na(yMVfirmJun)] <- 0 # Valores invexistentes em jun na base
+ySample4[(yMVfirmJun <= 0)] <- 0 # Valores zerados em jun na base
+ySample4[is.na(yMVfirmJun)] <- 0 # Valores invexistentes em jun na base
 
-ySample3 <- ySample3 * ySample2 # Interagem com atendem ao filtro anterior
+ySample4 <- ySample4 * ySample3 # Interagem com atendem ao filtro anterior
 
-#   2.2.4 Filtro Patrimonio Liquido - -----------------------------------------
+#   2.2.5 Filtro Patrimonio Liquido - -----------------------------------------
 
 yBookFirm <- read.table ("Input/yBookFirm.csv", header = T, sep=";",
                          dec=",", skip=0,
@@ -124,7 +133,7 @@ row.names(yBookFirm) <- as.Date(paste(rownames(yBookFirm),"-12-01", sep=""),
 yBookFirm            <- as.xts(yBookFirm, descr='Patrimonio Liquido')
 yBookFirm            <- as.data.frame(as.matrix(yBookFirm[PERIOD.XTS]))
 
-ySample4 <- filterPositiveBook(ySample2, yBookFirm) * ySample3
+ySample5 <- filterPositiveBook(ySample4, yBookFirm) * ySample4
 
 #== 2.3 Final Sample = ========================================================
 
@@ -137,15 +146,18 @@ F1 <- sampleReport(ySample0, ySample1)
 F2 <- sampleReport(ySample0, ySample2)[,2:3]
 F3 <- sampleReport(ySample0, ySample3)[,2:3]
 F4 <- sampleReport(ySample0, ySample4)[,2:3]
+F5 <- sampleReport(ySample0, ySample5)[,2:3]
 colnames(F1) <- c("Initial","(Filtro","1)")
 colnames(F2) <- c("(Filtro","2)")
 colnames(F3) <- c("(Filtro","3)")
 colnames(F4) <- c("(Filtro","4)")
+colnames(F5) <- c("(Filtro","5)")
 # F1: Filtro de Empresas Nao Financeiras
 # F2: FILTRO DE 24 MESES
-# F3: Filtro Valor de Mercado em 30/06 e 31/12
-# F4: Filtro Patrimonio Liquido
-cbind(F1,F2,F3,F4) ; rm(list=c("F1","F2","F3","F4"))
+# F3: Filtro Bovespa Negociability Index
+# F4: Filtro Valor de Mercado em 30/06 e 31/12
+# F5: Filtro Patrimonio Liquido
+cbind(F1, F2, F3, F4, F5) ; rm(list=c("F1","F2","F3","F4","F5"))
 
 ## 3. INVESTOR SENTIMENT INDEX ## #############################################
 ## 3. Índice de Sentimento

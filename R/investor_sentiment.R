@@ -133,14 +133,18 @@ ySample <- data.frame(apply( ySample4, 2, as.logical ),
            row.names=rownames(ySample4))
 
 ## RELATORIO
-F1 <- sampleReport(ySample0, ySample1) ; colnames(F1) <- c("Initial","Filtro 1","%")
-F2 <- sampleReport(ySample0, ySample2)[,2:3] ; colnames(F2) <- c("Filtro 2","%")
-F3 <- sampleReport(ySample0, ySample3)[,2:3] ; colnames(F3) <- c("Filtro 3","%")
-F4 <- sampleReport(ySample0, ySample4)[,2:3] ; colnames(F4) <- c("Filtro 4","%")
-# 1 Filtro de Empresas Nao Financeiras
-# 2 FILTRO DE 24 MESES
-# 3 Filtro Valor de Mercado em 30/06 e 31/12
-# 4 Filtro Patrimonio Liquido
+F1 <- sampleReport(ySample0, ySample1)
+F2 <- sampleReport(ySample0, ySample2)[,2:3]
+F3 <- sampleReport(ySample0, ySample3)[,2:3]
+F4 <- sampleReport(ySample0, ySample4)[,2:3]
+colnames(F1) <- c("Initial","(Filtro","1)")
+colnames(F2) <- c("(Filtro","2)")
+colnames(F3) <- c("(Filtro","3)")
+colnames(F4) <- c("(Filtro","4)")
+# F1: Filtro de Empresas Nao Financeiras
+# F2: FILTRO DE 24 MESES
+# F3: Filtro Valor de Mercado em 30/06 e 31/12
+# F4: Filtro Patrimonio Liquido
 cbind(F1,F2,F3,F4) ; rm(list=c("F1","F2","F3","F4"))
 
 ## 3. INVESTOR SENTIMENT INDEX ## #############################################

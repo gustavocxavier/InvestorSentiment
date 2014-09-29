@@ -7,7 +7,7 @@
 ## market.                       
 ## 
 
-## INDICE #####################################################################
+## CONTENTS ## ################################################################
 ## 1. SETTINGS
 ## 2. GET DATA AND CLEAN
 ## 3. INVESTOR SENTIMENT INDEX
@@ -16,10 +16,10 @@
 ## 6. INVESTOR SENTIMENT AND ANOMALIES
 ##
 
-## COISAS PRA FAZER AINDA ### #################################################
+## COISAS PRA FAZER AINDA ## ##################################################
 ## - Indice de Sentimento totalmente Calculado no R
+## - Retorno da Carteira de Mercado
 ## - VM Empresa qnd ON e PN / VM Classe qnd so uma classe na amostra
-## - Funcao p/ retornar todos os portfolios de uma vez allPortfoliosSeries
 ## - Funcao LongShortSeries
 ## - FILTRO Bovespa Negociability Index
 ## - FAZER UM FILTRO DE DATA PRA mProxies em breve
@@ -44,7 +44,6 @@ PERIOD.XTS   <- "2000-06/2014-07"     # Periodo / Period
 source("R/functions.R")
 
 ## 2. GET DATA AND CLEAN ## ##################################################
-
 # Carregar e limpar dados / Get Data and Clean
 
 #== 2.1 Read Data = ==========================================================
@@ -71,12 +70,10 @@ ySample0[ySample0>0]      <- 1
 #   2.2.1 Filtro de Empresas Nao Financeiras - --------------------------------
 
 ySample1 <- filterNoFinancial(ySample0, "Input/dbStocks.csv")
-sampleReport(ySample0, ySample1)
 
 #   2.2.2 FILTRO DE 24 MESES - ------------------------------------------------
 
 ySample2 <- filterNo24months(mPrices, ySample0) * ySample1
-sampleReport(ySample0, ySample2)
 
 #   2.2.3 Filtro Bovespa Negociability Index - --------------------------------
 # TODO: FILTRO Bovespa Negociability Index
@@ -117,8 +114,6 @@ ySample3[is.na(yMVfirmJun)] <- 0 # Valores invexistentes em jun na base
 
 ySample3 <- ySample3 * ySample2 # Interagem com atendem ao filtro anterior
 
-sampleReport(ySample0, ySample3)
-
 #   2.2.4 Filtro Patrimonio Liquido - -----------------------------------------
 
 yBookFirm <- read.table ("Input/yBookFirm.csv", header = T, sep=";",
@@ -129,28 +124,24 @@ row.names(yBookFirm) <- as.Date(paste(rownames(yBookFirm),"-12-01", sep=""),
 yBookFirm            <- as.xts(yBookFirm, descr='Patrimonio Liquido')
 yBookFirm            <- as.data.frame(as.matrix(yBookFirm[PERIOD.XTS]))
 
-# Desnecessary code?
-# yPERIOD.XTS <- paste(substr(PERIOD.XTS,1,4),substr(PERIOD.XTS,9,12), sep="/")
-# yBookFirm            <- yBookFirm[yPERIOD.XTS]
-
 ySample4 <- filterPositiveBook(ySample2, yBookFirm) * ySample3
-sampleReport(ySample0,ySample4)
-# OBS.: AMOSTRA INICIAL MENOR DO QUE A DE M&O(2011), E A FINAL MAIOR
-
-# Codigo Antigo
-# # Read Book Value
-# yBookFirm <- importaBaseCSV("Input/yBookFirm.csv", START, END, formato="%Y")
-# 
-# # Positive Book Value Filter
-# ySamplePositiveBook <- ySample0
-# ySamplePositiveBook[ is.na(yBookFirm) ] <- 0
-# ySamplePositiveBook[ yBookFirm < 0    ] <- 0
 
 #== 2.3 Final Sample = ========================================================
 
 # Salvar Amostra Final em um data frame lógico
 ySample <- data.frame(apply( ySample4, 2, as.logical ),
            row.names=rownames(ySample4))
+
+## RELATORIO
+F1 <- sampleReport(ySample0, ySample1) ; colnames(F1) <- c("Initial","Filtro 1","%")
+F2 <- sampleReport(ySample0, ySample2)[,2:3] ; colnames(F2) <- c("Filtro 2","%")
+F3 <- sampleReport(ySample0, ySample3)[,2:3] ; colnames(F3) <- c("Filtro 3","%")
+F4 <- sampleReport(ySample0, ySample4)[,2:3] ; colnames(F4) <- c("Filtro 4","%")
+# 1 Filtro de Empresas Nao Financeiras
+# 2 FILTRO DE 24 MESES
+# 3 Filtro Valor de Mercado em 30/06 e 31/12
+# 4 Filtro Patrimonio Liquido
+cbind(F1,F2,F3,F4) ; rm(list=c("F1","F2","F3","F4"))
 
 ## 3. INVESTOR SENTIMENT INDEX ## #############################################
 ## 3. Índice de Sentimento
@@ -164,13 +155,11 @@ mProxies   <- read.table ("Input/mProxies.csv",          # Read data
                           header = T, sep=";", dec=",",
                           row.names=1)
 
-# x <- as.Date(rownames(mProxies), format="%d/%m/%Y")      # Temporary variable
-
 # TO DO: FAZER UM FILTRO DE DATA PRA mProxies em breve
 mProxies <- mProxies[!is.na(mProxies$NIPO_lagged),]
 
 #as.dist(round(cor(mProxies, use="na.or.complete"),2))    # Correlations s/ NA
-as.dist(round(cor(mProxies, use="everything"),2))       # Correlations c/ Na
+as.dist(round(cor(mProxies, use="everything"),2))         # Correlations c/ Na
 
 #== 3.2 First Step = ==========================================================
 # Estimating first component of all proxies and their lags and choose the best
@@ -274,7 +263,7 @@ Sent <- PCAstep3$x[,"PC1"]
 # summary(lm(seriePortBM1$rVW[(1+LAG):156]  ~ PCAstep3$x[,"PC1"][1:(156-LAG)]))
 # length(seriePortBM1$rVW[13:156])
 # length(PCAstep3$x[,"PC1"][1:144])
-
+plot(ts(Sent, start=c(2001,1), end=c(2013,12), frequency=12), main="Sentiment", ylab=NULL)
 
 
 ## 4. CONSTRUCT PORTFOLIOS ## #################################################
@@ -299,7 +288,7 @@ Sent <- PCAstep3$x[,"PC1"]
 ##       (COMPARAR FF COM MM)
 ## 4.2.4 Serie de retorno dos demais fatores (MOM, LIQ)
 
-# Compute Logarithmic Returns
+### Compute Logarithmic Return
 pXTS <- as.xts(mPrices)
 mReturns <- as.data.frame( diff(log(pXTS), lag=1) ) ; rm(pXTS)
 
@@ -318,15 +307,12 @@ mMVclass     <- data.frame(as.matrix(mMVclass.xts)) ; rm(mMVclass.xts)
 
 allQuintiles(yMVfirmJun, mReturns, mMVclass)
 
-#--- Testando c/ MV class ----------------------------------------------------
-# Cria matriz apenas com os valores de Dez e apenas com valores de Jun
+# Testando c/ MV class ------------------------------------------------------
+## Cria matriz apenas com os valores de Dez e apenas com valores de Jun
 yMVclassJun <- mMVclass[(months(as.Date(rownames(mMVclass)), T)=="jun"),]
-# yMVclassDez <- mMVclass[(months(as.Date(rownames(mMVclass)), T)=="dez"),]
+## yMVclassDez <- mMVclass[(months(as.Date(rownames(mMVclass)), T)=="dez"),]
 yMVclassJun <- cleanData(yMVclassJun, ySample)
-
 allQuintiles(yMVclassJun, mReturns, mMVclass)
-
-# /// THE END ///
 
 #== LIQUIDEZ === ============================================================
 
@@ -337,8 +323,10 @@ rownames(mVolume)  <- as.Date(rownames(mVolume),"%d/%m/%Y")
 
 # Filtrando Periodo
 mVolume.xts <- as.xts(mVolume, descr='Volume em Reais')[PERIOD.XTS]
-yVolume     <- apply.yearly(mVolume.xts, last)
 mVolume     <- data.frame(as.matrix(mVolume.xts)) ; rm(mVolume.xts)
+
+# Cria matriz apenas com valores de Jun
+yVolume <- mVolume[(months(as.Date(rownames(mVolume)), T)=="jun"),]
 
 yVolume            <- cleanData(yVolume,    ySample)
 

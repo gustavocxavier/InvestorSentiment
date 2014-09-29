@@ -243,11 +243,17 @@ allQuintiles <- function (Criterion, Return, Value) {
     P4R <- portfolioSerie(Return, Value, P4A)
     P5R <- portfolioSerie(Return, Value, P5A)
     
-    P1=c(mean(P1R$rVW), sd(P1R$rVW), mean(P1R$rEW), sd(P1R$rEW))*100
-    P2=c(mean(P2R$rVW), sd(P2R$rVW), mean(P2R$rEW), sd(P2R$rEW))*100
-    P3=c(mean(P3R$rVW), sd(P3R$rVW), mean(P3R$rEW), sd(P3R$rEW))*100
-    P4=c(mean(P4R$rVW), sd(P4R$rVW), mean(P4R$rEW), sd(P4R$rEW))*100
-    P5=c(mean(P5R$rVW), sd(P5R$rVW), mean(P5R$rEW), sd(P5R$rEW))*100
+    P1=c(mean(P1R$rVW, na.rm=T), sd(P1R$rVW, na.rm=T))*100
+    P2=c(mean(P2R$rVW, na.rm=T), sd(P2R$rVW, na.rm=T))*100
+    P3=c(mean(P3R$rVW, na.rm=T), sd(P3R$rVW, na.rm=T))*100
+    P4=c(mean(P4R$rVW, na.rm=T), sd(P4R$rVW, na.rm=T))*100
+    P5=c(mean(P5R$rVW, na.rm=T), sd(P5R$rVW, na.rm=T))*100
+    
+    P1=c(P1,c(mean(P1R$rEW, na.rm=T), sd(P1R$rEW, na.rm=T))*100)
+    P2=c(P2,c(mean(P2R$rEW, na.rm=T), sd(P2R$rEW, na.rm=T))*100)
+    P3=c(P3,c(mean(P3R$rEW, na.rm=T), sd(P3R$rEW, na.rm=T))*100)
+    P4=c(P4,c(mean(P4R$rEW, na.rm=T), sd(P4R$rEW, na.rm=T))*100)
+    P5=c(P5,c(mean(P5R$rEW, na.rm=T), sd(P5R$rEW, na.rm=T))*100)
     
     data.frame(cbind(P1,P2,P3,P4,P5),
                row.names=c("VW r", "VW sd", "EW r", "EW sd"))

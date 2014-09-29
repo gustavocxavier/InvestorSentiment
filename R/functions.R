@@ -62,7 +62,7 @@ filterPositiveBook <- function(Sample, Book) {
     ## Filtrar apenas ações com patrimonio liquido positivo em n-1
     ##
     for ( i in 2:nrow(Sample)) {
-        Sample[i,][( Book[(i-1),]<=0 | is.na(Book[(i-1),]) )] <- 0
+        Sample[i,][ ( Book[(i-1),]<=0 | is.na(Book[(i-1),]) ) ] <- 0
     }
  
     return(Sample)

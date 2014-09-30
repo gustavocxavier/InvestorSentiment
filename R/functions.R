@@ -6,18 +6,74 @@
 
 #   1.2.1 Data Functions - ----------------------------------------------------
 
-filterNoFinancial <- function(Sample, dbFile) {
-    # Exclui as empresas financeiras
-    # smpl ... Matriz de Amostra
-    # file ... Arquivo onde tem a relacao de empresas
+importaBaseCSV <- function(arquivo, periodo, formato="%d/%m/%Y", ignora=0) {
     
+    # Descricao: Funcao para importar base Economatica apos salvo como CSV
+    #
+    # Argumentos:
+    # arquivo ...... Nome do arquivo CSV a ser importado
+    # periodo ...... Periodo escolhido. Ex.: "2000-06/2014-07"
+    # formato ...... Formato da data, para "01/01/2000" utilize "%d/%m%Y"
+    # ignora ....... Quantidade de linhas que serao ignoradas
+    #
+    
+    require(xts)
+
+    tabela <- read.table (arquivo, header = T, sep=";", dec=",", row.names=1,
+                          skip=ignora, na.strings="-", stringsAsFactors=F)
+    
+    if ( formato=="%Y" ) {
+        data_completa <- paste(rownames(tabela),"-12-01", sep="")
+        row.names(tabela) <- as.Date(data_completa, "%Y-%m-%d")
+    } else {
+        row.names(tabela) <- as.Date(row.names(tabela), format=formato)
+    }
+    
+    # Filtrando Periodo
+    tempXTS <- as.xts(tabela)[PERIOD.XTS]
+    tabela  <- data.frame(as.matrix(tempXTS))
+    
+    return(tabela)
+}
+
+initialSample <-  function (rawPrices) {
+    
+    ## Funçao que retorna matriz anual de amostra inicial a partir de dados
+    ## brutos de precos.
+    
+    require(xts)
+    Out <- as.matrix(rawPrices)
+    Out[!is.na(rawPrices)] <- 1 # Atribuir valor 1 aos nao NA
+    Out[is.na(rawPrices)   ] <- 0 # Atribuir valor 0 aos NA
+    
+    Out <- as.matrix(apply.yearly(as.xts(Out), mean)) # Calcular Media ou
+    # percentual c/ cotacao no
+    # ano.
+    
+    Out[Out>0]             <- 1 # Media anual(%) maior do que zero teve cotacao
+    
+    OutNames <- rownames(Out) # Salvar nome das linhas
+    Out <- apply(Out, 2, as.logical) # Transformar matriz em logica
+    rownames(Out) <- OutNames # Recuperar nomes de linhas salvos
+    
+    as.data.frame(Out) # Retornar matriz lógica como um data.frame
+}
+ySample0 <- initialSample(mPrices)
+
+filterNoFinancial <- function(Sample, dbFile) {
+
+    ## Exclui as empresas financeiras
+    ##
+    ## Sample ...... Matriz de Amostra
+    ## dbFile ...... Arquivo onde tem a relacao de empresas
+
     db <- read.table(dbFile, dec=",", sep=";", header = T, na.strings="-",
                      stringsAsFactors=F)
     
-    Sample <- reclass(Sample)
-    Sample[,(db$SetorEconomatica=="Financas e Seguros")] <- 0
+    Out <- as.matrix(Sample) # Transforma em matriz por ser mais rapido
+    Out[,(db$SetorEconomatica=="Financas e Seguros")] <- FALSE
     
-    return(Sample)
+    as.data.frame(Out)
 }
 
 sampleReport <- function (s0, s1) {
@@ -31,44 +87,173 @@ sampleReport <- function (s0, s1) {
     return(Sample)
 }
 
-filterNo24months <- function(prices, InitialSample) {
-    # Descrição:
-    #
-    # (-) acoes que n apresentam 24 meses consecutivos
-    # MM: Formação das carteiras em 01/jun
-    # 12 meses antes (jun a mai) e 12 depois (jul a jun)
-    # Fator Momento: retorno de jul/(n-1):mai/(n  ) (11 meses)
-    #                precos  de jun/(n-1):mai/(n  ) (12 meses)
-    # Carteiras:     retorno de jul/(n  ):jun/(n+1)    (12 meses)
-    #                precos  de jun/(n  ):jun/(n+1) (13 meses)
-    #
-    # Argumentos
-    #
-    if (!is.xts(prices)) { prices <- as.xts(prices) }
+filterNo24months <- function(monthlyPrices, InitialSample) {
+    
+    ## Filtra amostra deixando apenas as empresas que apresentarem precos
+    ## durante 24 meses consecutivos, sendo considerado os 12 meses antes e 12
+    ## depois do dia da formacao das carteiras, que ocorre em 30/jun.
+    ##
+    ## monthlyPrices ......... Matriz de precos mensais
+    ## InitialSample ......... Matriz de Amostra Inicial
+    ##
+    ## Para calculo do Fator Momento: precos  de jun/(n-1):mai/(n  ) (12 meses)
+    ##                                retorno de jul/(n-1):mai/(n  ) (11 meses)
+    ##
+    ## Para calculo do das Carteiras: precos  de jun/(n  ):jun/(n+1) (13 meses)
+    ##                                retorno de jul/(n  ):jun/(n+1) (12 meses)
+    ##
+    
+    require(xts)
+    
+    prices <- as.xts(monthlyPrices)
     n <- as.numeric(format(first(index(prices)),"%Y")) # First year
     N <- as.numeric(format( last(index(prices)),"%Y")) # Last year
-    NewSample <- as.matrix(InitialSample)
-    NewSample[(n - (n - 1)),] <- 0 # First year equal zero
+    
+    Out <- as.matrix(InitialSample)
+    Out[(n - (n - 1)),] <- FALSE # First year equal zero
     for ( i in (n+1):(N-1) ) {
         p <- paste(i-1,"-06/",i+1,"-07", sep="") # Periodo de Interesse
-        NewSample[(i+1 - n),] <- !apply(prices[p], 2, anyNA)
+        Out[(i+1 - n),] <- !apply(prices[p], 2, anyNA)
     }
-    NewSample[(N+1 - n),] <- 0 # First year equal zero
-    return(NewSample)
-}
+    Out[(N+1 - n),] <- FALSE # Last year equal zero
 
-filterPositiveBook <- function(Sample, Book) {
-    ##
-    ## Filtrar apenas ações com patrimonio liquido positivo em n-1
-    ##
-    for ( i in 2:nrow(Sample)) {
-        Sample[i,][ ( Book[(i-1),]<=0 | is.na(Book[(i-1),]) ) ] <- 0
-    }
- 
-    return(Sample)
+    as.data.frame(Out) # Retornar matriz lógica como um data.frame
 }
 
 #   1.2.2 Sentiment Functions - -----------------------------------------------
+
+coletaDEBnaCVM <- function (ano) {
+    require(XML)
+    # COLETANDO DEBENTURES
+    url <- "http://www.cvm.gov.br/asp/cvmwww/registro/ofertasreg2/deb.asp?Ano="
+    url <- paste(url, ano, sep="")
+    pagina <- readHTMLTable(url, stringsAsFactors = F)
+    numero_linhas <- length(attributes(pagina)[[1]])
+    if ( numero_linhas > 1 ) {
+        for (i in 2:numero_linhas) {
+            sub_linhas <- length(pagina[[i]][,1])
+            for ( j in 1:sub_linhas) {
+                if ( !exists("tabela") ) {
+                    # SE FOR A TABELA NAO EXISTE, CRIA
+                    tabela <- data.frame(data=pagina[[i]][j,2],
+                                         empresa=pagina[[i]][j,1],
+                                         tipo=pagina[[i]][j,3],
+                                         valor=pagina[[i]][j,4],
+                                         stringsAsFactors=F)
+                } else { # SE EXISTE, APENAS ADICIONAR LINHAS
+                    tabela <- rbind(tabela,c(pagina[[i]][j,2],
+                                             pagina[[i]][j,1],
+                                             pagina[[i]][j,3],
+                                             pagina[[i]][j,4]))
+                }
+            }
+        }
+    }
+    # COLETANDO IPO SECUNDARIAS
+    url <- "http://www.cvm.gov.br/asp/cvmwww/registro/ofertasreg2/nota.asp?Ano="
+    url <- paste(url, ano, sep="")
+    pagina <- readHTMLTable(url, stringsAsFactors = F)
+    numero_linhas <- length(attributes(pagina)[[1]])
+    if ( numero_linhas > 1 ) {
+        for (i in 2:numero_linhas) {
+            sub_linhas <- length(pagina[[i]][,1])
+            for ( j in 1:sub_linhas) {
+                if ( !exists("tabela") ) {
+                    # SE FOR A TABELA NAO EXISTE, CRIA
+                    tabela <- data.frame(data=pagina[[i]][j,2],
+                                         empresa=pagina[[i]][j,1],
+                                         tipo="NP",
+                                         valor=pagina[[i]][j,3],
+                                         stringsAsFactors=F)
+                } else { # SE EXISTE, APENAS ADICIONAR LINHAS
+                    tabela <- rbind(tabela,c(pagina[[i]][j,2],
+                                             pagina[[i]][j,1],
+                                             "NP",
+                                             pagina[[i]][j,3]))
+                }
+            }
+        }
+    }
+    if ( exists("tabela") ) {
+        tabela <- tabela[ !is.na(tabela$valor) ,]
+        tabela <- tabela[ !as.logical(sapply(tabela[,2], FUN=pmatch, x="TOTAL", nomatch=0)) ,]
+        row.names(tabela) <- seq(1:nrow(tabela))
+        return(tabela)
+    } else { print("Ano sem informação") }
+}
+
+coletaIPOnaCVM <- function (ano) {
+    require(XML)
+    # COLETANDO IPO PRIMARIAS
+    url <- "http://www.cvm.gov.br/asp/cvmwww/registro/ofertasreg2/acoes.asp?ano="
+    url <- paste(url, ano, sep="")
+    pagina <- readHTMLTable(url, stringsAsFactors = F)
+    numero_linhas <- length(attributes(pagina)[[1]])
+    if ( numero_linhas > 1 ) {
+        for (i in 2:numero_linhas) {
+            sub_linhas <- length(pagina[[i]][,1])
+            for ( j in 1:sub_linhas) {
+                if ( !exists("tabela") ) {
+                    # SE FOR A TABELA NAO EXISTE, CRIA
+                    tabela <- data.frame(data=pagina[[i]][j,2],
+                                         empresa=pagina[[i]][j,1],
+                                         tipo=pagina[[i]][j,3],
+                                         valor=pagina[[i]][j,4],
+                                         stringsAsFactors=F)
+                } else { # SE EXISTE, APENAS ADICIONAR LINHAS
+                    tabela <- rbind(tabela,c(pagina[[i]][j,2],
+                                             pagina[[i]][j,1],
+                                             pagina[[i]][j,3],
+                                             pagina[[i]][j,4]))
+                }
+            }
+        }
+    }
+    # COLETANDO IPO SECUNDARIAS
+    url <- "http://www.cvm.gov.br/asp/cvmwww/registro/ofertasreg2/secnd3.asp?grp_emis=1&ano="
+    url <- paste(url, ano, sep="")
+    pagina <- readHTMLTable(url, stringsAsFactors = F)
+    numero_linhas <- length(attributes(pagina)[[1]])
+    if ( numero_linhas > 1 ) {
+        for (i in 2:numero_linhas) {
+            sub_linhas <- length(pagina[[i]][,1])
+            for ( j in 1:sub_linhas) {
+                if ( !exists("tabela") ) {
+                    # SE FOR A TABELA NAO EXISTE, CRIA
+                    tabela <- data.frame(data=pagina[[i]][j,2],
+                                         empresa=pagina[[i]][j,1],
+                                         tipo="SEC",
+                                         valor=pagina[[i]][j,3],
+                                         stringsAsFactors=F)
+                } else { # SE EXISTE, APENAS ADICIONAR LINHAS
+                    tabela <- rbind(tabela,c(pagina[[i]][j,2],
+                                             pagina[[i]][j,1],
+                                             "SEC",
+                                             pagina[[i]][j,3]))
+                }
+            }
+        }
+    }
+    if ( exists("tabela") ) {
+        tabela <- tabela[ !is.na(tabela$valor) ,]
+        tabela <- tabela[ !as.logical(sapply(tabela[,2], FUN=pmatch, x="TOTAL", nomatch=0)) ,]
+        row.names(tabela) <- seq(1:nrow(tabela))
+        return(tabela)
+    } else { print("Ano sem informação") }
+}
+
+coletaVariosAnosCVM <- function(anos, funcao) {
+    print("Acho bom você ir tomar um café, isso pode demorar um pouco.")
+    variosAnos <- funcao(anos[1])
+    print(paste(anos[1], "OK"))
+    for (n in anos[2:length(anos)]) {
+        variosAnos <- rbind(variosAnos, funcao(n))
+        print(paste(n, "OK"))
+        #Sys.sleep(3)
+    }
+    print("Até que enfim, acabou!!!")
+    return(variosAnos)
+}
 
 chooseLAG <- function (m) {
     
@@ -269,10 +454,10 @@ cleanData <- function(yData, Sample, LAG=0) {
         # Atribui NA em todos os valores yData em n qnd Sample em n for FALSE
         yData[(Sample==F)] <- NA
         # Atribui NA em todos os valores yData no ultimo ano
-        yData[nrow(yData),] <- NA
+        # yData[nrow(yData),] <- NA
     } else if ( LAG == 1 ) {
         # Atribui NA em todos os valores yData em n-1 qnd Sample em n for FALSE
-        yData[-nrow(yData),][(Sample[-1,]==F)] <- NA
+        yData[(Sample[-1,]==F)] <- NA
     } else if ( LAG != 0 & 1 ) { print("Valores validos para LAG sao 1 ou 0")}
     return(yData)
 }

@@ -23,6 +23,7 @@
 ##   - Coletar RIPO
 ## - Retorno da Carteira de Mercado
 ## - Funcao LongShortSeries
+## - Deixar filtro de data do "Rf <- importaBaseCSV" automatico
 ## - Calcular variavel MOMENTO como retorno de jul/(n-1):mai/(n  )
 ## - VM Empresa qnd ON e PN / VM Classe qnd so uma classe na amostra
 ## - FAZER UM FILTRO DE DATA PRA mProxies em breve
@@ -48,10 +49,10 @@ if ( !("xts"       %in% ip) ) { install.packages("xts") }
 if ( !("lubridate" %in% ip) ) { install.packages("lubridate") } ; rm(ip)
 
 
-if (!(require(xts, character.only=T, quietly=T))) {
-    install.packages(package)
-    library(package, character.only=T)
-}
+# if (!(require(xts, character.only=T, quietly=T))) {
+#     install.packages(package)
+#     library(package, character.only=T)
+# }
 
 ## Carregar pacotes / Load packages
 library(xts)
@@ -118,12 +119,12 @@ source("R/functions.R")
 # CVM.DEBs <- DEBs ; rm(DEBs)
 # CVM.SUBs <- SUBs ; rm(SUBs)
 
-S <- as.data.frame(xtabs(valor~ano+mes, CVM.S[(CVM.S$tipo=="ACOES"),]))
-tmp <- as.data.frame(xtabs(valor~ano+mes, CVM.S[(CVM.S$tipo=="DIVID"),]))$Freq
-S <- cbind(S,tmp) ; rm(tmp) ; colnames(S) <- c("Y","M","A","DEB")
-rownames(S) <- NULL ; S$Y <- as.numeric(S$Y) ; S$M <- as.numeric(S$M)
-S <- S[order(S$Y,S$M),]
-S$Issues <- S$A / ( S$A + S$DEB)
+# S <- as.data.frame(xtabs(valor~ano+mes, CVM.S[(CVM.S$tipo=="ACOES"),]))
+# tmp <- as.data.frame(xtabs(valor~ano+mes, CVM.S[(CVM.S$tipo=="DIVID"),]))$Freq
+# S <- cbind(S,tmp) ; rm(tmp) ; colnames(S) <- c("Y","M","A","DEB")
+# rownames(S) <- NULL ; S$Y <- as.numeric(S$Y) ; S$M <- as.numeric(S$M)
+# S <- S[order(S$Y,S$M),]
+# S$Issues <- S$A / ( S$A + S$DEB)
 
 # # Guardando dados em formato txt e csv
 # write.table(IPOs, "Output/IPOs.txt", sep="\t", row.names = F)
@@ -134,14 +135,14 @@ S$Issues <- S$A / ( S$A + S$DEB)
 # write.csv(DEBs, file="Output/DEBsCSV.csv", row.names = F)
 # # IPO2 <- read.table("Output/IPOs.txt", sep="\t", skip=1, col.names=c("data","empresa","tipo","valor"))
 
-CVM.S  <- CVM.IPOs[c("data", "valor")] ; rownames(CVM.S)  <- NULL
-CVM.S2 <- CVM.SUBs[c("data", "valor")] ; rownames(CVM.S2) <- NULL
-CVM.S3 <- CVM.DEBs[c("data", "valor")] ; rownames(CVM.S3) <- NULL
-CVM.S$tipo  <- "ACOES" ; CVM.S2$tipo <- "ACOES" ; CVM.S3$tipo <- "DIVID"
-CVM.S  <- rbind(CVM.S, CVM.S2, CVM.S3) ; rm(CVM.S2) ; rm(CVM.S3)
-CVM.S$mes <- as.numeric(substr(CVM.S$data, 6,7))
-CVM.S$ano <- as.numeric(substr(CVM.S$data, 1,4))
-xtabs(~ano+mes, CVM.S)
+# CVM.S  <- CVM.IPOs[c("data", "valor")] ; rownames(CVM.S)  <- NULL
+# CVM.S2 <- CVM.SUBs[c("data", "valor")] ; rownames(CVM.S2) <- NULL
+# CVM.S3 <- CVM.DEBs[c("data", "valor")] ; rownames(CVM.S3) <- NULL
+# CVM.S$tipo  <- "ACOES" ; CVM.S2$tipo <- "ACOES" ; CVM.S3$tipo <- "DIVID"
+# CVM.S  <- rbind(CVM.S, CVM.S2, CVM.S3) ; rm(CVM.S2) ; rm(CVM.S3)
+# CVM.S$mes <- as.numeric(substr(CVM.S$data, 6,7))
+# CVM.S$ano <- as.numeric(substr(CVM.S$data, 1,4))
+# xtabs(~ano+mes, CVM.S)
 
 ### Ler Dados em CSV / Load CSV Data # -----------------------------------------
 
@@ -225,7 +226,7 @@ ySample5 <- ySample4
 ySample5[yNegociab < 0.001] <- F ; ySample5[is.na(yNegociab)] <- F
 
 ## Amostra Final / Final Sampe
-ySample <- ySample4
+ySample <- ySample5
 F1 <- sampleReport(ySample0, ySample1)
 F2 <- sampleReport(ySample0, ySample2)[,2:3]
 F3 <- sampleReport(ySample0, ySample3)[,2:3]
@@ -254,114 +255,116 @@ yVolumeDez  <- cleanData(yVolumeDez,  ySample, LAG=1)
 yBM         <- cleanData(yBM,         ySample, LAG=1)
 yMomentum   <- cleanData(yMomentum,   ySample)
 
-# ## 3. INVESTOR SENTIMENT INDEX ## #############################################
-# ## 3. Índice de Sentimento
-# ## 3.1. Temporalidade das Proxies: Selecionar proxies que serão defasadas
-# ## 3.2. Índice de Sentimento não Ortogonalizado
-# ## 3.3. Índice de Sentimento Ortogonalizado à variáveis macroeconômicas  
+rownames (yMomentum) <- rownames(yVolumeJun)
+
+## 3. INVESTOR SENTIMENT INDEX ## #############################################
+## 3. Índice de Sentimento
+## 3.1. Temporalidade das Proxies: Selecionar proxies que serão defasadas
+## 3.2. Índice de Sentimento não Ortogonalizado
+## 3.3. Índice de Sentimento Ortogonalizado à variáveis macroeconômicas  
+
+#== 3.1 Read/Compute Proxies = ===============================================
+
+mProxies   <- read.table ("Input/mProxies.csv",          # Read data
+                          header = T, sep=";", dec=",",
+                          row.names=1)
+
+# TO DO: FAZER UM FILTRO DE DATA PRA mProxies em breve
+mProxies <- mProxies[!is.na(mProxies$NIPO_lagged),]
+
+#as.dist(round(cor(mProxies, use="na.or.complete"),2))    # Correlations s/ NA
+as.dist(round(cor(mProxies, use="everything"),2))         # Correlations c/ Na
+
+#== 3.2 First Step = ==========================================================
+# Estimating first component of all proxies and their lags and choose the best
+
+PCAstep1 <- prcomp(mProxies, scale=T)
+
+round(cor(PCAstep1$x[,"PC1"],mProxies),2)         # The correlations
+mBestProxies <- chooseLAG(mProxies);rm(chooseLAG) # Choosing LAGs...
+colnames(mBestProxies)                            # Best proxies
+round(cor(PCAstep1$x[,"PC1"],mBestProxies),2)     # Correlation with PC1
+as.dist(round(cor(mBestProxies),2))               # Correlations between them
+
+#== 3.3 Second Step = =========================================================
+# Estimating first component of the best proxies
+
+PCAstep2 <-prcomp(mBestProxies, scale=T)
+
+cor(PCAstep1$x[,"PC1"],PCAstep2$x[,"PC1"]) # Correlation with PC1 of the 1º step
+summary(PCAstep2)                          # Proportion of Variance
+PCAstep2$rotation[,"PC1"] # Not orthogonalized index (osb.: not important)
+
+#== 3.4 Third Step = ==========================================================
+# Estimate orthogonilized proxies by the regression all raw proxies
+
+# Read macroeconomics variables
+mMacroeconomics   <- read.table ("Input/mMacroeconomics.csv",   header = T, 
+                                 sep=";", dec=",", na.strings="-", row.names=1)
+
+# Date Filter
+x <- as.Date(rownames(mMacroeconomics), format="%d/%m/%Y")
+mMacroeconomics <-  mMacroeconomics[(x >= as.Date("2001-01-01") &
+                                         x <= as.Date("2013-12-01")),]
+rm(x)
+
+# dummy SELIC igual a 1 quando a taxa cai em rela??o ao m?s anterior
+dSELIC <- c(0,as.numeric(embed(mMacroeconomics$SELIC,2)[,1] <= 
+                                 embed(mMacroeconomics$SELIC,2)[,2]
+))
+
+# dummy PIB igual a 1 quando o PIB sobe em rela??o ao m?s anterior
+dPIB   <- c(0,as.numeric(embed(mMacroeconomics$PIB,2)[,1] >=
+                                 embed(mMacroeconomics$PIB,2)[,2]
+))
+
+# Retirando a série da Selic e deixando só a do PIB
+mMacroeconomics$SELIC <- NULL
+# Acrescentando o dPIB e o dSELIC
+mMacroeconomics <-cbind(mMacroeconomics, dPIB, dSELIC)
+rm(list=c("dPIB","dSELIC"))
+
+# Estimando Proxies Ortogonalizada
+mProxiesOrtog <- mBestProxies
+for ( i in 1:ncol(mProxiesOrtog)) {
+        mProxiesOrtog[,i] <- lm(mBestProxies[,i] ~ data.matrix(mMacroeconomics))$residuals
+}
+rm(i)
+
+# Estimando Componentes Principais da Terceira Etapa
+PCAstep3 <-prcomp(mProxiesOrtog, scale=T)
+
+# Estimando Componentes Principais da Terceira Etapa
+PCAstep3 <-prcomp(mProxiesOrtog, scale=T)
+# PCAstep3 <- princomp(mProxiesOrtog, scores=T, cor=T) # Metodo alternativo
+
+# Verificando correlacao com o primeiro indice
+cor(PCAstep2$x[,"PC1"],PCAstep3$x[,"PC1"])
+
+# Percentual explicado da variancia
+summary(PCAstep3)
+# summary(princomp(mProxiesOrtog, scores=T, cor=T)) # Metodo alternativo
+
+# Scree plot of eigenvalues
+screeplot(PCAstep3, type="line", main="Scree Plot Sentimento Ortogonalizado")
+
+PCAstep3$rotation[,"PC1"] * (-1) # Equacao do Indice de Sent. Ortogonalizado
+Sent <- ts(PCAstep3$x[,"PC1"], start=c(2001,1), end=c(2013,12), frequency=12)
+
+# ## 4. INVESTOR SENTIMENT AND ANOMALIES ## 
+# ## Sentimento do Investidor e Anomalias
+# ## 4.1. Análise das Médias após períodos de Sentimento Alto e Baixo
+# ## 4.2. Modelos Econométricos
+# ## 4.1 Extremos e sentimento defasado
+# ## 4.2 Extremos, sentimeto defasado e fatores de risco
+# ## 4.3 Extremos, dummys
 # 
-# #== 3.1 Read/Compute Proxies = ===============================================
-# 
-# mProxies   <- read.table ("Input/mProxies.csv",          # Read data
-#                           header = T, sep=";", dec=",",
-#                           row.names=1)
-# 
-# # TO DO: FAZER UM FILTRO DE DATA PRA mProxies em breve
-# mProxies <- mProxies[!is.na(mProxies$NIPO_lagged),]
-# 
-# #as.dist(round(cor(mProxies, use="na.or.complete"),2))    # Correlations s/ NA
-# as.dist(round(cor(mProxies, use="everything"),2))         # Correlations c/ Na
-# 
-# #== 3.2 First Step = ==========================================================
-# # Estimating first component of all proxies and their lags and choose the best
-# 
-# PCAstep1 <- prcomp(mProxies, scale=T)
-# 
-# round(cor(PCAstep1$x[,"PC1"],mProxies),2)         # The correlations
-# mBestProxies <- chooseLAG(mProxies);rm(chooseLAG) # Choosing LAGs...
-# colnames(mBestProxies)                            # Best proxies
-# round(cor(PCAstep1$x[,"PC1"],mBestProxies),2)     # Correlation with PC1
-# as.dist(round(cor(mBestProxies),2))               # Correlations between them
-# 
-# #== 3.3 Second Step = =========================================================
-# # Estimating first component of the best proxies
-# 
-# PCAstep2 <-prcomp(mBestProxies, scale=T)
-# 
-# cor(PCAstep1$x[,"PC1"],PCAstep2$x[,"PC1"]) # Correlation with PC1 of the 1º step
-# summary(PCAstep2)                          # Proportion of Variance
-# PCAstep2$rotation[,"PC1"] # Not orthogonalized index (osb.: not important)
-# 
-# #== 3.4 Third Step = ==========================================================
-# # Estimate orthogonilized proxies by the regression all raw proxies
-# 
-# # Read macroeconomics variables
-# mMacroeconomics   <- read.table ("Input/mMacroeconomics.csv",   header = T, 
-#                                  sep=";", dec=",", na.strings="-", row.names=1)
-# 
-# # Date Filter
-# x <- as.Date(rownames(mMacroeconomics), format="%d/%m/%Y")
-# mMacroeconomics <-  mMacroeconomics[(x >= as.Date("2001-01-01") &
-#                                          x <= as.Date("2013-12-01")),]
-# rm(x)
-# 
-# # dummy SELIC igual a 1 quando a taxa cai em rela??o ao m?s anterior
-# dSELIC <- c(0,as.numeric(embed(mMacroeconomics$SELIC,2)[,1] <= 
-#                                  embed(mMacroeconomics$SELIC,2)[,2]
-# ))
-# 
-# # dummy PIB igual a 1 quando o PIB sobe em rela??o ao m?s anterior
-# dPIB   <- c(0,as.numeric(embed(mMacroeconomics$PIB,2)[,1] >=
-#                                  embed(mMacroeconomics$PIB,2)[,2]
-# ))
-# 
-# # Retirando a série da Selic e deixando só a do PIB
-# mMacroeconomics$SELIC <- NULL
-# # Acrescentando o dPIB e o dSELIC
-# mMacroeconomics <-cbind(mMacroeconomics, dPIB, dSELIC)
-# rm(list=c("dPIB","dSELIC"))
-# 
-# # Estimando Proxies Ortogonalizada
-# mProxiesOrtog <- mBestProxies
-# for ( i in 1:ncol(mProxiesOrtog)) {
-#         mProxiesOrtog[,i] <- lm(mBestProxies[,i] ~ data.matrix(mMacroeconomics))$residuals
-# }
-# rm(i)
-# 
-# # Estimando Componentes Principais da Terceira Etapa
-# PCAstep3 <-prcomp(mProxiesOrtog, scale=T)
-# 
-# # Estimando Componentes Principais da Terceira Etapa
-# PCAstep3 <-prcomp(mProxiesOrtog, scale=T)
-# # PCAstep3 <- princomp(mProxiesOrtog, scores=T, cor=T) # Metodo alternativo
-# 
-# # Verificando correlacao com o primeiro indice
-# cor(PCAstep2$x[,"PC1"],PCAstep3$x[,"PC1"])
-# 
-# # Percentual explicado da variancia
-# summary(PCAstep3)
-# # summary(princomp(mProxiesOrtog, scores=T, cor=T)) # Metodo alternativo
-# 
-# # Scree plot of eigenvalues
-# screeplot(PCAstep3, type="line", main="Scree Plot Sentimento Ortogonalizado")
-# 
-# PCAstep3$rotation[,"PC1"] * (-1) # Equacao do Indice de Sent. Ortogonalizado
-# Sent <- ts(PCAstep3$x[,"PC1"], start=c(2001,1), end=c(2013,12), frequency=12)
-# 
-# # ## 4. INVESTOR SENTIMENT AND ANOMALIES ## 
-# # ## Sentimento do Investidor e Anomalias
-# # ## 4.1. Análise das Médias após períodos de Sentimento Alto e Baixo
-# # ## 4.2. Modelos Econométricos
-# # ## 4.1 Extremos e sentimento defasado
-# # ## 4.2 Extremos, sentimeto defasado e fatores de risco
-# # ## 4.3 Extremos, dummys
-# # 
-# # # TESTE INDICE
-# # LAG <- 12
-# # summary(lm(seriePortBM1$rVW[(1+LAG):156]  ~ PCAstep3$x[,"PC1"][1:(156-LAG)]))
-# # length(seriePortBM1$rVW[13:156])
-# # length(PCAstep3$x[,"PC1"][1:144])
-# plot(Sent, main="Sentiment", ylab=NULL) ; lines(Sent, col="blue")
+# # TESTE INDICE
+# LAG <- 12
+# summary(lm(seriePortBM1$rVW[(1+LAG):156]  ~ PCAstep3$x[,"PC1"][1:(156-LAG)]))
+# length(seriePortBM1$rVW[13:156])
+# length(PCAstep3$x[,"PC1"][1:144])
+plot(Sent, main="Sentiment", ylab=NULL) ; lines(Sent, col="blue")
 
 ## 4. CONSTRUCT PORTFOLIOS ## #################################################
 ## 4. Portfolios
@@ -372,57 +375,55 @@ yMomentum   <- cleanData(yMomentum,   ySample)
 ##       portfolioSerie - retorna ...
 ## 4.2.4 Serie de retorno dos demais fatores (MOM, LIQ)
 
-## Quintis conforme Anomalias # ------------------------------------------------
-allQuintiles(yMVfirmJun,  mReturns, mMVclass) ## TAMANHO  (VM Empresa Jun)
-allQuintiles(yMVfirmDez, mReturns, mMVclass)  ## TAMANHO  (VM Empresa Dez)
-allQuintiles(yMVclassJun, mReturns, mMVclass) ## TAMANHO  (VM Classe  Jun)
-allQuintiles(yMVclassDez, mReturns, mMVclass) ## TAMANHO  (VM Classe  Dez)
-allQuintiles(yVolumeJun, mReturns, mMVclass)  ## LIQUIDEZ (Volume Medio) JUN
-allQuintiles(yVolumeDez, mReturns, mMVclass)  ## LIQUIDEZ (Volume Medio) DEZ ñ
-allQuintiles(yBM, mReturns, mMVclass)         ## BM
-allQuintiles(yMomentum, mReturns, mMVclass)   ## MOMENTO
-
 ## LongShort Stategies # -------------------------------------------------------
 # TAMANHO  (VM Classe  Jun)
 Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVclassJun, 5, 1))
 Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVclassJun, 5, 5))
 ls_TAM <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
+colMeans(ls_TAM)*100
 
 # TAMANHO  (VM Classe  Dez)
 Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVclassDez, 5, 1))
 Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVclassDez, 5, 5))
 ls_TAMdez <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
+colMeans(ls_TAMdez)*100
 
 # TAMANHO  (VM Empresa Jun)
 Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVfirmJun, 5, 1))
 Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVfirmJun, 5, 5))
 ls_TAMfirmJun <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
+colMeans(ls_TAMfirmJun)*100
 
 # TAMANHO  (VM Empresa Dez)
 Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVfirmDez, 5, 1))
 Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVfirmDez, 5, 5))
 ls_TAMfirmDez <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
+colMeans(ls_TAMfirmDez)*100
 
 # LIQUIDEZ (Volume Medio) JUN
 Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yVolumeJun, 5, 1))
 Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yVolumeJun, 5, 5))
 ls_LIQ <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
+colMeans(ls_LIQ)*100
 
 # LIQUIDEZ (Volume Medio) DEZ ñ
 Long   <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yVolumeDez, 5, 1))
 Short  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yVolumeDez, 5, 5))
 ls_LIQdez <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
+colMeans(ls_LIQdez)*100
 
 # BM
 Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yBM, 5, 1))
 Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yBM, 5, 5))
 ls_BM <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
+colMeans(ls_BM)*100
 
 # MOMENTO
-Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMomentum, 5, 1))
-Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMomentum, 5, 2))
+Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMomentum, 5, 5))
+Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMomentum, 5, 1))
 ls_MOM <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
 rm(list=c("Long","Short"))
+colMeans(ls_MOM)*100
 
 ## 5. PRICING MODELS ## #######################################################
 ## 5.1 Ativos Livre de Risco
@@ -433,57 +434,66 @@ rm(list=c("Long","Short"))
 ## 5.5 Fator Momento
 ## 5.6 Fator Liquidez
 
-# ## Fatores de Risco / Risk Factors
-# ##
-# ## aFactorP = assets Factor Portfolio (Example: assets of Size Big = aSizeB )
-#
-# ## Carteiras por Fator
-# assetsSize_S <- portfolioSelectAssets(yMarketValue,2,1) * 1 # Small
-# assetsSize_B <- portfolioSelectAssets(yMarketValue,2,2) * 1 # Big   
-# 
-# assetsBM_H <- portfolioSelectAssets(yBM,3,1) * 1 # Value  (High BM)
-# assetsBM_N <- portfolioSelectAssets(yBM,3,2) * 1 # Neutral
-# assetsBM_L <- portfolioSelectAssets(yBM,3,3) * 1 # Growth (Low BM)
-#
-# ## Carteiras 
-# assets_SH <- assetsSize_S * assetsBM_H # Small Value (High BM)
-# assets_SN <- assetsSize_S * assetsBM_N # Small Neutral
-# assets_SL <- assetsSize_S * assetsBM_L # Small Growth (Low BM)
-# assets_BH <- assetsSize_B * assetsBM_H # Big Value (High BM)
-# assets_BN <- assetsSize_B * assetsBM_N # Big Neutral
-# assets_BL <- assetsSize_B * assetsBM_L # Big Growth (Low BM)
-# assets_SH <- apply(assets_SH, 1, function(x) as.logical(x) ) # Small Value (High BM)
-# assets_SN <- apply(assets_SN, 2, function(x) as.logical(x) ) # Small Neutral
-# assets_SL <- apply(assets_SL, 2, function(x) as.logical(x) ) # Small Growth (Low BM)
-# assets_BH <- apply(assets_BH, 2, function(x) as.logical(x) ) # Big Value (High BM)
-# assets_BN <- apply(assets_BN, 2, function(x) as.logical(x) ) # Big Neutral
-# assets_BL <- apply(assets_BL, 2, function(x) as.logical(x) ) # Big Growth (Low BM)
-# rownames(assets_SH) <- rownames(assetsSize_S)
-# rownames(assets_SN) <- rownames(assetsSize_S)
-# rownames(assets_SL) <- rownames(assetsSize_S)
-# rownames(assets_BH) <- rownames(assetsSize_B)
-# rownames(assets_BN) <- rownames(assetsSize_B)
-# rownames(assets_BL) <- rownames(assetsSize_B)
-#
-# ## Retornos
-# assets_SH <- assetsSize_S * assetsBM_H # Small Value (High BM)
-# assets_SN <- assetsSize_S * assetsBM_N # Small Neutral
-# assets_SL <- assetsSize_S * assetsBM_L # Small Growth (Low BM)
-# assets_BH <- assetsSize_B * assetsBM_H # Big Value (High BM)
-# assets_BN <- assetsSize_B * assetsBM_N # Big Neutral
-# assets_BL <- assetsSize_B * assetsBM_L # Big Growth (Low BM)
-# portSH <- portfolioSerie(mReturns, mMVclass, assets_SH)
-# portSN <- portfolioSerie(mReturns, mMVclass, assets_SN)
-# portSL <- portfolioSerie(mReturns, mMVclass, assets_SL)
-# portBH <- portfolioSerie(mReturns, mMVclass, assets_BH)
-# portBN <- portfolioSerie(mReturns, mMVclass, assets_BN)
-# portBL <- portfolioSerie(mReturns, mMVclass, assets_BL)
-#
-# HML <- 1/2 * (portSH$rVW + portBH$rVW) - 1/2 * (portSL$rVW + portBL$rVW)
-# ##           (Small Value + Big Value) - 1/2 (Small Growth + Big Growth)
-# 
-# SMB <- 1/3 * ( portSH$rVW + portSN$rVW + portSG$rVW ) - 1/3* ( portBV$rVW+portBN$rVW+portBG$rVW )
-# ##     1/3 (Small Value + Small Neutral + Small Growth) - 1/3 (Big Value + Big Neutral + Big Growth)
+## Ativo Livre de Risco
+Rf <- importaBaseCSV("Input/mMacroeconomics.csv")[-(1:12),]
+tmp <- as.xts(Rf)
+Rf  <- as.data.frame( diff(log(tmp), lag=1) ) ; rm(tmp)
+
+## Carteira de Mercado
+MKT <- portfolioSerie(mReturns, mMVclass, ySample)$rVW
+
+Rf  <- Rf[1+(1:length(MKT)),]
+Rf  <- as.numeric(Rf$SELIC)
+
+MKT <- MKT-Rf
+
+## Fatores de Risco / Risk Factors
+##
+
+## Carteiras por Fator
+assetsF_Size_S <- portfolioSelectAssets(yMVclassJun,2,1) * 1 # Small
+assetsF_Size_B <- portfolioSelectAssets(yMVclassJun,2,2) * 1 # Big   
+
+assetsF_BM_H <- portfolioSelectAssets(yBM,3,1) * 1 # Value  (High BM)
+assetsF_BM_N <- portfolioSelectAssets(yBM,3,2) * 1 # Neutral
+assetsF_BM_L <- portfolioSelectAssets(yBM,3,3) * 1 # Growth (Low BM)
+
+## Carteiras a partir da Interação
+assetsF_SH <- assetsF_Size_S[-1,] * assetsF_BM_H # Small Value (High BM)
+assetsF_SN <- assetsF_Size_S[-1,] * assetsF_BM_N # Small Neutral
+assetsF_SL <- assetsF_Size_S[-1,] * assetsF_BM_L # Small Growth (Low BM)
+assetsF_BH <- assetsF_Size_B[-1,] * assetsF_BM_H # Big Value (High BM)
+assetsF_BN <- assetsF_Size_B[-1,] * assetsF_BM_N # Big Neutral
+assetsF_BL <- assetsF_Size_B[-1,] * assetsF_BM_L # Big Growth (Low BM)
+assetsF_SH <- apply(assetsF_SH, 2, function(x) as.logical(x) ) # Small Value (High BM)
+assetsF_SN <- apply(assetsF_SN, 2, function(x) as.logical(x) ) # Small Neutral
+assetsF_SL <- apply(assetsF_SL, 2, function(x) as.logical(x) ) # Small Growth (Low BM)
+assetsF_BH <- apply(assetsF_BH, 2, function(x) as.logical(x) ) # Big Value (High BM)
+assetsF_BN <- apply(assetsF_BN, 2, function(x) as.logical(x) ) # Big Neutral
+assetsF_BL <- apply(assetsF_BL, 2, function(x) as.logical(x) ) # Big Growth (Low BM)
+rownames(assetsF_SH) <- rownames(yBM)
+rownames(assetsF_SN) <- rownames(yBM)
+rownames(assetsF_SL) <- rownames(yBM)
+rownames(assetsF_BH) <- rownames(yBM)
+rownames(assetsF_BN) <- rownames(yBM)
+rownames(assetsF_BL) <- rownames(yBM)
+
+## Retornos
+portF_SH <- portfolioSerie(mReturns, mMVclass, assetsF_SH)
+portF_SN <- portfolioSerie(mReturns, mMVclass, assetsF_SN)
+portF_SL <- portfolioSerie(mReturns, mMVclass, assetsF_SL)
+portF_BH <- portfolioSerie(mReturns, mMVclass, assetsF_BH)
+portF_BN <- portfolioSerie(mReturns, mMVclass, assetsF_BN)
+portF_BL <- portfolioSerie(mReturns, mMVclass, assetsF_BL)
+
+rm(list=ls(pattern = "assetsF_"))
+
+HML <- (portF_SH$rVW + portF_BH$rVW)/2 - (portF_SL$rVW + portF_BL$rVW)/2
+##     1/2 (Small Value + Big Value)   - 1/2 (Small Growth + Big Growth)
+
+SMB <-(portF_SH$rVW+portF_SN$rVW+portF_SL$rVW)/3-(portF_BH$rVW+portF_BN$rVW+portF_BL$rVW)/3
+##    1/3 (Small Value + Small Neutral + Small Growth)
+##        - 1/3 (Big Value + Big Neutral + Big Growth)
 
 ## 6. INVESTOR SENTIMENT AND ANOMALIES ## #####################################
 ##    Sentimento do Investidor e Anomalias
@@ -500,19 +510,39 @@ rm(list=c("Long","Short"))
 
 #   6.2.1 Sentiment and Returns - ---------------------------------------------
 
-# SentSIZE <- lm(SIZE_L ~ SENT[_n-1])
-# SentLIQ  <- 
-# SentBM   <- 
-# SentMOM  <- 
+# Sent <- ts(PCAstep3$x[,"PC1"], start=c(2001,1), end=c(2013,12), frequency=12)
+# L <- ts(ls_LIQ$LONG ,start=c(2000,7), end=c(2013,6), frequency=12)
 
-# Sent.Long.Beta        <- lm(Long.Beta  ~ SENT[_n-1])
-# Sent.Short.Beta       <- lm(Short.Beta ~ SENT[_n-1])
-# Sent.Long.Size        <- lm(Long.Size  ~ SENT[_n-1])
-# Sent.Short.Size       <- lm(Short.Size ~ SENT[_n-1])
-# Sent.Long.Liquidity   <- lm(Long.Liquidity  ~ SENT[_n-1])
-# Sent.Short.Liquidity  <- lm(Short.Liquidity ~ SENT[_n-1])
-# Sent.Long.BM          <- lm(Long.BM  ~ SENT[_n-1])
-# Sent.Short.BM         <- lm(Short.BM ~ SENT[_n-1])
+LAG <- 12
+Sentiment <- as.numeric(Sent)[(1+LAG):152]
+
+port <- ls_LIQ$LONG[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- ls_LIQdez$LONG[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- ls_MOM$LONG[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- ls_TAM$LONG[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- ls_TAMdez$LONG[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- ls_TAMfirmDez$LONG[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- ls_TAMfirmJun$LONG[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+
+port <- ls_BM$SHORT[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- ls_LIQ$SHORT[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- ls_LIQdez$SHORT[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- ls_MOM$SHORT[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- ls_TAM$SHORT[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- ls_TAMdez$SHORT[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- ls_TAMfirmDez$SHORT[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- ls_TAMfirmJun$SHORT[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+
+port <- (ls_BM$LONG - ls_BM$SHORT)[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- (ls_LIQ$LONG - ls_LIQ$SHORT)[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- (ls_LIQdez$LONG - ls_LIQdez$SHORT)[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- (ls_MOM$LONG - ls_MOM$SHORT)[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- (ls_TAM$LONG - ls_TAM$SHORT)[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- (ls_TAMdez$LONG - ls_TAMdez$SHORT)[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- (ls_TAMfirmDez$LONG - ls_TAMfirmDez$SHORT)[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+port <- (ls_TAMfirmJun$LONG - ls_TAMfirmJun$SHORT)[1:(152-LAG)] ; summary(lm(port ~ Sentiment))$coefficients[2,]
+
+# rm(list=ls(pattern = "ls_"))
 
 #   6.2.2 Sentiment and Pricing Models - --------------------------------------
 
@@ -524,6 +554,61 @@ rm(list=c("Long","Short"))
 # Sent.Short.Liquidity  <- lm(Short.Liquidity ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
 # Sent.Long.BM          <- lm(Long.BM  ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
 # Sent.Short.BM         <- lm(Short.BM ~ SENT[_n-1]+MKT+SMB+HML+MOM+LIQ)
+
+Rf <-  Rf[1:(152-LAG)]
+MKT <- MKT[1:(152-LAG)]
+SMB <- SMB[1:(152-LAG)]
+HML <- HML[1:(152-LAG)]
+
+Rp <- ls_LIQ$LONG[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+
+Rp <- ls_LIQdez$LONG[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- ls_MOM$LONG[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- ls_TAM$LONG[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- ls_TAMdez$LONG[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- ls_TAMfirmDez$LONG[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- ls_TAMfirmJun$LONG[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+
+Rp <- ls_BM$SHORT[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- ls_LIQ$SHORT[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- ls_LIQdez$SHORT[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- ls_MOM$SHORT[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- ls_TAM$SHORT[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- ls_TAMdez$SHORT[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- ls_TAMfirmDez$SHORT[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- ls_TAMfirmJun$SHORT[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+
+Rp <- (ls_BM$LONG - ls_BM$SHORT)[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- (ls_LIQ$LONG - ls_LIQ$SHORT)[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- (ls_LIQdez$LONG - ls_LIQdez$SHORT)[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- (ls_MOM$LONG - ls_MOM$SHORT)[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- (ls_TAM$LONG - ls_TAM$SHORT)[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- (ls_TAMdez$LONG - ls_TAMdez$SHORT)[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- (ls_TAMfirmDez$LONG - ls_TAMfirmDez$SHORT)[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
+Rp <- (ls_TAMfirmJun$LONG - ls_TAMfirmJun$SHORT)[1:(152-LAG)] - Rf
+summary(lm(Rp ~ Sentiment+MKT+SMB+HML))
 
 #   6.2.2 Sentiment High and Low - --------------------------------------------
 
@@ -572,3 +657,13 @@ round(cor(PCAstep2$x[,"PC1"],mBestProxies),2) * (-1) # Correlação Proxies Escolh
 cor(PCAstep2$x[,"PC1"],PCAstep3$x[,"PC1"])           # Correlação do Indice da 3ª etapa com o da 2ª etapa
 summary(PCAstep3)                                    # Percentual explicado da variancia
 PCAstep3$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Ortogonalizado
+
+# ## Quintis conforme Anomalias # ------------------------------------------------
+allQuintiles(yMVfirmJun,  mReturns, mMVclass) ## TAMANHO  (VM Empresa Jun)
+allQuintiles(yMVfirmDez, mReturns, mMVclass)  ## TAMANHO  (VM Empresa Dez)
+allQuintiles(yMVclassJun, mReturns, mMVclass) ## TAMANHO  (VM Classe  Jun)
+allQuintiles(yMVclassDez, mReturns, mMVclass) ## TAMANHO  (VM Classe  Dez)
+allQuintiles(yVolumeJun, mReturns, mMVclass)  ## LIQUIDEZ (Volume Medio) JUN
+allQuintiles(yVolumeDez, mReturns, mMVclass)  ## LIQUIDEZ (Volume Medio) DEZ ñ
+allQuintiles(yBM, mReturns, mMVclass)         ## BM
+allQuintiles(yMomentum, mReturns, mMVclass)   ## MOMENTO

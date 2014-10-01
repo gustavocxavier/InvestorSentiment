@@ -58,7 +58,6 @@ initialSample <-  function (rawPrices) {
     
     as.data.frame(Out) # Retornar matriz lógica como um data.frame
 }
-ySample0 <- initialSample(mPrices)
 
 filterNoFinancial <- function(Sample, dbFile) {
 
@@ -528,7 +527,6 @@ cleanData <- function(yData, Sample, LAG=0) {
     } else if ( LAG != 0 & 1 ) { print("Valores validos para LAG sao 1 ou 0")}
     return(yData)
 }
-
 
 # constructPortfolio <- function (strategy, nPortfolios, iPortfolio) {}
 # rebalancedPortfolios <- function ()

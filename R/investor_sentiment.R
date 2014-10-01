@@ -16,20 +16,21 @@
 ##
 
 ## COISAS PRA FAZER AINDA ## ###################################################
-## - Organizar o codigo
+## - Todas as regressoes e painel com os interceptos e o R2
 ## - Incluir calculo no R de todas as proxies para o Indice de Sentimento
-##   - Calcular Numero de IPO
-##   - Calcular S
-##   - Calcular NIPO
+##   - Organizar Calculo do S (Solucao Interpolacao/L)
 ##   - Calcular PVOL
 ##   - Coletar RIPO
 ## - Retorno da Carteira de Mercado
-## - Calcular variavel MOMENTO como retorno de jul/(n-1):mai/(n  )
-## - Calcular Book-to-Market conforme MM
-## - VM Empresa qnd ON e PN / VM Classe qnd so uma classe na amostra
 ## - Funcao LongShortSeries
-## - FILTRO Bovespa Negociability Index
+## - Calcular variavel MOMENTO como retorno de jul/(n-1):mai/(n  )
+## - VM Empresa qnd ON e PN / VM Classe qnd so uma classe na amostra
 ## - FAZER UM FILTRO DE DATA PRA mProxies em breve
+## - Teste replicação M&O (2011)
+## - Testar Anomalias: FC/P, L/P, ALAV
+## - Teste CAPM
+## - Calcular 3F de FF
+## - Calcular demais fatores (LIQ e MOM)
 
 #' 
 
@@ -46,6 +47,12 @@ ip <- installed.packages()
 if ( !("xts"       %in% ip) ) { install.packages("xts") }
 if ( !("lubridate" %in% ip) ) { install.packages("lubridate") } ; rm(ip)
 
+
+if (!(require(xts, character.only=T, quietly=T))) {
+    install.packages(package)
+    library(package, character.only=T)
+}
+
 ## Carregar pacotes / Load packages
 library(xts)
 library(lubridate)
@@ -61,30 +68,80 @@ source("R/functions.R")
 ## 2.1 Importar Dados / Load Data # ============================================
 
 ### Importar Dados Online / Load Online Data # ---------------------------------
-
 ## COLETA DIRETO DO SITE DA CVM EM DESENVOLVIMENTO
 
-## Baixando dados de IPO
-#IPOs <- coletaVariosAnosCVM(1999:2013, coletaIPOnaCVM)
-## Baixando dados de emissão de dívidas
-#DEBs <- coletaVariosAnosCVM(1999:2013, coletaDEBnaCVM)
-## Guardando dados em formato txt e csv
-#write.table(IPOs, "Output/IPOs.txt", sep="\t", row.names = F)
-#write.table(DEBs, "Output/DEBs.txt", sep="\t", row.names = F)
-#write.table(IPOs, "Output/IPOs.csv", sep=";", row.names = F)
-#write.table(DEBs, file="Output/DEBs.csv", sep=";", row.names = F)
-## write.csv(IPOs, file="Output/IPOsCSV.csv", row.names = F)
-## write.csv(DEBs, file="Output/DEBsCSV.csv", row.names = F)
-## IPO2 <- read.table("Output/IPOs.txt", sep="\t", skip=1, col.names=c("data","empresa","tipo","valor"))
-## identical(IPOs, IPO2)
+# ## Baixar dados de IPO do Site da CVM
+# IPOs <- coletaVariosAnosCVM(1999:2013, coletaIPOnaCVM)
+# ## Baixar dados de emissão de dívidas
+# DEBs <- coletaVariosAnosCVM(1999:2013, coletaDEBnaCVM)
+# ## Baixar dados de emissão de açoes Subsequentes
+# SUBs <- coletaVariosAnosCVM(1999:2013, coletaSubsequentesnaCVM)
+# ## Transformar dados de valor em decimeal (substitui virgula por ponto)
+# IPOs$valor <- as.numeric(gsub(",", ".", gsub("\\.", "",  IPOs$valor, fixed=F)))
+# DEBs$valor <- as.numeric(gsub(",", ".", gsub("\\.", "",  DEBs$valor, fixed=F)))
+# SUBs$valor <- as.numeric(gsub(",", ".", gsub("\\.", "",  SUBs$valor, fixed=F)))
+
+# ## Colocar as Datas no Formato do R
+# IPOs$data <- as.Date(IPOs$data, format="%d/%m/%Y")
+# DEBs$data <- as.Date(DEBs$data, format="%d/%m/%Y")
+# SUBs$data <- as.Date(SUBs$data, format="%d/%m/%Y")
 #
-## --- FALTA AGORA TRATAR OS DADOS ---
-# transformaDecimal <- function (vetor) {
-#        vetor <- gsub(".", "",  vetor, fixed=T)
-#        vetor <- gsub(",", ".", vetor, fixed=T)
-#        return(vetor)
-# }
-# transformaDecimal(IPOs$valor)
+# CVM.IPOs <- IPOs[order(IPOs$data, IPOs$empresa),] # Ordenar matriz de IPOs
+# CVM.DEBs <- DEBs[order(DEBs$data, DEBs$empresa),] # Ordenar matriz de DEBs
+# 
+# ## Organizando os nomes das empresas
+# IPOs$nome_antigo <- IPOs$empresa
+# # IPOs$empresa <- IPOs$nome_antigo
+# IPOs$empresa <- gsub("^\\** ", "", IPOs$empresa)     # Retirar "** " no comeco
+# IPOs$empresa <- gsub("S\\.A\\.", "SA", IPOs$empresa) # Substituir S.A. por SA
+# IPOs$empresa <- gsub("S.A", "SA", IPOs$empresa) # Substituir S.A e S/A por SA
+# IPOs$empresa <- gsub("\\-", "", IPOs$empresa)   # Retirar todos os tracos
+# IPOs$empresa <- gsub("  ", " ", IPOs$empresa)   # Retirar 2 espacos juntos
+# IPOs$empresa <- cleanString(IPOs$empresa)       # Substituir caracteris espec.
+# IPOs$empresa <- toupper(IPOs$empresa)           # Colocar em letra maiuscula
+# IPOs$emp     <- substr(IPOs$empresa,1,12)       # Gerar STRING de comparacao
+# IPOs$D       <- !(duplicated(IPOs$emp))         # Nao duplicados = TRUE
+#
+# ## Verificando Quantidade de IPO por ano 
+# ano      <- substr(IPOs$data[IPOs$D],1,4)
+# mes      <- substr(IPOs$data[IPOs$D],6,7)
+# nipo     <- data.frame(table(ano, mes))
+# nipo$ano <- as.numeric(nipo$ano)
+# nipo$mes <- as.numeric(nipo$mes)
+# nipo     <- nipo[order(nipo$ano,nipo$mes),]
+# rownames(nipo) <- seq(as.Date("1999/1/1"), as.Date("2013/12/1"), by="month")
+# nipo$ano <- NULL ; nipo$mes <- NULL ; colnames(nipo) <- "nipo"
+# # nipos <- as.data.frame(cbind(CVM=nipo$nipo[25:156],BVSP=mProxies$NIPO))
+# rm(list=c("ano","mes","IPOs2"))
+# 
+# CVM.IPOs <- IPOs ; rm(IPOs)
+# CVM.DEBs <- DEBs ; rm(DEBs)
+# CVM.SUBs <- SUBs ; rm(SUBs)
+
+S <- as.data.frame(xtabs(valor~ano+mes, CVM.S[(CVM.S$tipo=="ACOES"),]))
+tmp <- as.data.frame(xtabs(valor~ano+mes, CVM.S[(CVM.S$tipo=="DIVID"),]))$Freq
+S <- cbind(S,tmp) ; rm(tmp) ; colnames(S) <- c("Y","M","A","DEB")
+rownames(S) <- NULL ; S$Y <- as.numeric(S$Y) ; S$M <- as.numeric(S$M)
+S <- S[order(S$Y,S$M),]
+S$Issues <- S$A / ( S$A + S$DEB)
+
+# # Guardando dados em formato txt e csv
+# write.table(IPOs, "Output/IPOs.txt", sep="\t", row.names = F)
+# write.table(DEBs, "Output/DEBs.txt", sep="\t", row.names = F)
+# write.table(IPOs, "Output/IPOs.csv", sep=";", row.names = F)
+# write.table(DEBs, file="Output/DEBs.csv", sep=";", row.names = F)
+# write.csv(IPOs, file="Output/IPOsCSV.csv", row.names = F)
+# write.csv(DEBs, file="Output/DEBsCSV.csv", row.names = F)
+# # IPO2 <- read.table("Output/IPOs.txt", sep="\t", skip=1, col.names=c("data","empresa","tipo","valor"))
+
+CVM.S  <- CVM.IPOs[c("data", "valor")] ; rownames(CVM.S)  <- NULL
+CVM.S2 <- CVM.SUBs[c("data", "valor")] ; rownames(CVM.S2) <- NULL
+CVM.S3 <- CVM.DEBs[c("data", "valor")] ; rownames(CVM.S3) <- NULL
+CVM.S$tipo  <- "ACOES" ; CVM.S2$tipo <- "ACOES" ; CVM.S3$tipo <- "DIVID"
+CVM.S  <- rbind(CVM.S, CVM.S2, CVM.S3) ; rm(CVM.S2) ; rm(CVM.S3)
+CVM.S$mes <- as.numeric(substr(CVM.S$data, 6,7))
+CVM.S$ano <- as.numeric(substr(CVM.S$data, 1,4))
+xtabs(~ano+mes, CVM.S)
 
 ### Ler Dados em CSV / Load CSV Data # -----------------------------------------
 
@@ -309,13 +366,13 @@ yMomentum   <- cleanData(yMomentum,   ySample)
 ## 4. CONSTRUCT PORTFOLIOS ## #################################################
 ## 4. Portfolios
 ## 4.1 Construir Carteiras
-##       portfolioAssets cria_matriz_carteira - retorna dCriterio
 ## 4.2 Interação de Carteiras
 ##       portfolioAssetesInteracao = portfolioAssets1 x portfolioAssets2
 ## 4.3 Retorno das Carteiras
 ##       portfolioSerie - retorna ...
 ## 4.2.4 Serie de retorno dos demais fatores (MOM, LIQ)
 
+## Quintis conforme Anomalias # ------------------------------------------------
 allQuintiles(yMVfirmJun,  mReturns, mMVclass) ## TAMANHO  (VM Empresa Jun)
 allQuintiles(yMVfirmDez, mReturns, mMVclass)  ## TAMANHO  (VM Empresa Dez)
 allQuintiles(yMVclassJun, mReturns, mMVclass) ## TAMANHO  (VM Classe  Jun)
@@ -325,132 +382,47 @@ allQuintiles(yVolumeDez, mReturns, mMVclass)  ## LIQUIDEZ (Volume Medio) DEZ ñ
 allQuintiles(yBM, mReturns, mMVclass)         ## BM
 allQuintiles(yMomentum, mReturns, mMVclass)   ## MOMENTO
 
-#== Returns === =============================================================
-# # szS szB bmH bmN bmL SH SN SL BN BL
-# AssetsSize_S <- portfolioAssets2(yMarketValue,2,1)  # Small
-# AssetsSize_B <- portfolioAssets2(yMarketValue,2,2)  # Big   
-# 
-# AssetsBM_H <- portfolioAssets2(yBM,3,1)             # Value (High BM)
-# AssetsBM_N <- portfolioAssets2(yBM,3,2)             # Neutral
-# AssetsBM_L <- portfolioAssets2(yBM,3,3)             # Growth (Low BM)
-# 
-# AssetsSH <- AssetsSize_S * AssetsBM_H # Small Value (High BM)
-# AssetsSN <- AssetsSize_S * AssetsBM_N # Small Neutral
-# AssetsSL <- AssetsSize_S * AssetsBM_L # Small Growth (Low BM)
-# AssetsBH <- AssetsSize_B * AssetsBM_H # Big Value (High BM)
-# AssetsBN <- AssetsSize_B * AssetsBM_N # Big Neutral
-# AssetsBL <- AssetsSize_B * AssetsBM_L # Big Growth (Low BM)
-# 
-# AssetsSH <- apply(AssetsSH, 1, function(x) as.logical(x) ) # Small Neutral
-# AssetsSN <- apply(AssetsSN, 2, function(x) as.logical(x) ) # Small Neutral
-# AssetsSL <- apply(AssetsSL, 2, function(x) as.logical(x) ) # Small Growth (Low BM)
-# AssetsBH <- apply(AssetsBH, 2, function(x) as.logical(x) ) # Big Value (High BM)
-# AssetsBN <- apply(AssetsBN, 2, function(x) as.logical(x) ) # Big Neutral
-# AssetsBL <- apply(AssetsBL, 2, function(x) as.logical(x) ) # Big Growth (Low BM)
-# AssetsSH[1:5,1:5]
-# 
-# rownames(AssetsSH) <- rownames(yBM)
-# rownames(AssetsSN) <- rownames(yBM)
-# rownames(AssetsSL) <- rownames(yBM)
-# rownames(AssetsBH) <- rownames(yBM)
-# rownames(AssetsBN) <- rownames(yBM)
-# rownames(AssetsBL) <- rownames(yBM)
-# 
-# # ...........................
-# 
-# interactPortfolios <- function (x, y) {
-#         # Criando tabela
-#         tabela <- x
-#         for (i in 1:nrow(tabela)) {
-#                 tabela[i,] <- as.logical(x[i,] * y[i,])
-#         }
-#         return(tabela)
-# }
-# 
-# C <- A[c(1,2,1,3,5),c(1,2,3,4,5,1)]
-# B
-# D <- B*C
-# apply(D, 2, function(x) as.logical(x) )
-# 
-# # ........ Procurar no stack overflow como transformar data.frame 1 o em logico
-# 
-# # HML = 1/2 (Small Value + Big Value) - 1/2 (Small Growth + Big Growth)
-# FactorHML <- 1/2*(AssetsSH)
-# 
-# # SMB = 1/3 (Small Value + Small Neutral + Small Growth)
-# #       - 1/3 (Big Value + Big Neutral + Big Growth)
-# PortfolioSMB <- 
-#         PortfolioHML
-# debug(portfolioSerie)
-# serieSmallValue <- portfolioSerie(mReturns, mMarketValue,AssetsSH)
-# warnings()
-# head(AssetsSH[,1:5])
-# head(mReturns[,1:5])
-# tail(mReturns[,1:5])
-# tail(AssetsSH[,1:5])
-# 
-# serieSmallValue <- portfolioSerie(mReturns, mMarketValue,AssetsSH)
-# 
-# seriePortBM1 <- portfolioSerie(mReturns, mMarketValue, portfolioAssets2(yBM,5,1))
-# 
-# # TESTE INDICE
-# LAG <- 12
-# summary(lm(seriePortBM1$rWV[(1+LAG):156]  ~ PCAstep3$x[,"PC1"][1:(156-LAG)]))
-# 
-# 
-# length(seriePortBM1$rWV[13:156])
-# length(PCAstep3$x[,"PC1"][1:144])
-# 
-# 
-# # _____________________________________________________________________________
-# # TESTE UTILIZANDO DADOS REAIS
-# 
-# nAtivos <- 1108
-# 
-# precins  <- mPrices[12:36,1:nAtivos]
-# retornin <- diff(log(as.matrix(precins)))
-# valorzin <- mMarketValue[13:36,1:nAtivos]
-# criterin <- yBookFirm[1:2,1:nAtivos]
-# criterin <- yBookFirm[1:2,1:nAtivos] / valorzin[c(12,24),]
-# 
-# #portfolioAssets2(criterin,3,1)
-# #portfolioAssets2(criterin,3,3)
-# #portfolioSerie(retornin, valorzin, portfolioAssets2(criterin,5,1))
-# 
-# #rm(list=c("precins", "retornin", "criterin", "valorzin", "nAtivos"))
-# 
-# ..............................................................................
-# 
-# ..............................................................................
+## LongShort Stategies # -------------------------------------------------------
+# TAMANHO  (VM Classe  Jun)
+Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVclassJun, 5, 1))
+Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVclassJun, 5, 5))
+ls_TAM <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
 
-# _____________________________________________________________________________
-## TESTE EM VETORES
-#
-#portfolioRange(yNegociabilidade[1,],5,5)
-#portfolioAssets(yNegociabilidade[1,],5,1)
-# _____________________________________________________________________________
-## TESTE EM MATRIZ
-## SIMULANDO VALORES
-#retornin <- matrix(rnorm((12*3*5),0,0.3), ncol=5, nrow=(12*3))
-#criterin <- matrix(round( rnorm((3*5),10,5) ,0), ncol=5, nrow=3)
-#valorzin <- matrix(round(rnorm((12*3*5),100,50),0), ncol=5, nrow=(12*3))
-#
-#portfolioSerie(retornin,
-#               valorzin,
-#               portfolioAssets2(criterin,5,1)
-#)
-#rm(list=c("retornin", "criterin", "valorzin"))
-# ______________________________________________________________________________
-# TESTE UTILIZANDO A FUNÇÃO APPLY
-#
-#wPortfolio <- t(         apply(valorzin,
-#                               MARGIN=1, function (x) (x/sum(x, na.rm=T)) ) )
-#rPortfolio <- as.matrix( apply(retornin*wPortfolio,
-#                               MARGIN=1, sum, na.rm=T                     ) )
-#
-#
+# TAMANHO  (VM Classe  Dez)
+Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVclassDez, 5, 1))
+Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVclassDez, 5, 5))
+ls_TAMdez <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
 
+# TAMANHO  (VM Empresa Jun)
+Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVfirmJun, 5, 1))
+Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVfirmJun, 5, 5))
+ls_TAMfirmJun <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
 
+# TAMANHO  (VM Empresa Dez)
+Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVfirmDez, 5, 1))
+Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVfirmDez, 5, 5))
+ls_TAMfirmDez <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
+
+# LIQUIDEZ (Volume Medio) JUN
+Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yVolumeJun, 5, 1))
+Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yVolumeJun, 5, 5))
+ls_LIQ <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
+
+# LIQUIDEZ (Volume Medio) DEZ ñ
+Long   <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yVolumeDez, 5, 1))
+Short  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yVolumeDez, 5, 5))
+ls_LIQdez <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
+
+# BM
+Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yBM, 5, 1))
+Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yBM, 5, 5))
+ls_BM <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
+
+# MOMENTO
+Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMomentum, 5, 1))
+Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMomentum, 5, 2))
+ls_MOM <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
+rm(list=c("Long","Short"))
 
 ## 5. PRICING MODELS ## #######################################################
 ## 5.1 Ativos Livre de Risco
@@ -461,69 +433,57 @@ allQuintiles(yMomentum, mReturns, mMVclass)   ## MOMENTO
 ## 5.5 Fator Momento
 ## 5.6 Fator Liquidez
 
-# # ### PRICING MODEL ### 
+# ## Fatores de Risco / Risk Factors
+# ##
+# ## aFactorP = assets Factor Portfolio (Example: assets of Size Big = aSizeB )
+#
+# ## Carteiras por Fator
+# assetsSize_S <- portfolioSelectAssets(yMarketValue,2,1) * 1 # Small
+# assetsSize_B <- portfolioSelectAssets(yMarketValue,2,2) * 1 # Big   
 # 
-# # szS szB bmH bmN bmL SH SN SL BN BL
-# AssetsSize_S <- portfolioAssets2(yMV,2,1)  # Small
-# AssetsSize_B <- portfolioAssets2(yMV,2,2)  # Big   
+# assetsBM_H <- portfolioSelectAssets(yBM,3,1) * 1 # Value  (High BM)
+# assetsBM_N <- portfolioSelectAssets(yBM,3,2) * 1 # Neutral
+# assetsBM_L <- portfolioSelectAssets(yBM,3,3) * 1 # Growth (Low BM)
+#
+# ## Carteiras 
+# assets_SH <- assetsSize_S * assetsBM_H # Small Value (High BM)
+# assets_SN <- assetsSize_S * assetsBM_N # Small Neutral
+# assets_SL <- assetsSize_S * assetsBM_L # Small Growth (Low BM)
+# assets_BH <- assetsSize_B * assetsBM_H # Big Value (High BM)
+# assets_BN <- assetsSize_B * assetsBM_N # Big Neutral
+# assets_BL <- assetsSize_B * assetsBM_L # Big Growth (Low BM)
+# assets_SH <- apply(assets_SH, 1, function(x) as.logical(x) ) # Small Value (High BM)
+# assets_SN <- apply(assets_SN, 2, function(x) as.logical(x) ) # Small Neutral
+# assets_SL <- apply(assets_SL, 2, function(x) as.logical(x) ) # Small Growth (Low BM)
+# assets_BH <- apply(assets_BH, 2, function(x) as.logical(x) ) # Big Value (High BM)
+# assets_BN <- apply(assets_BN, 2, function(x) as.logical(x) ) # Big Neutral
+# assets_BL <- apply(assets_BL, 2, function(x) as.logical(x) ) # Big Growth (Low BM)
+# rownames(assets_SH) <- rownames(assetsSize_S)
+# rownames(assets_SN) <- rownames(assetsSize_S)
+# rownames(assets_SL) <- rownames(assetsSize_S)
+# rownames(assets_BH) <- rownames(assetsSize_B)
+# rownames(assets_BN) <- rownames(assetsSize_B)
+# rownames(assets_BL) <- rownames(assetsSize_B)
+#
+# ## Retornos
+# assets_SH <- assetsSize_S * assetsBM_H # Small Value (High BM)
+# assets_SN <- assetsSize_S * assetsBM_N # Small Neutral
+# assets_SL <- assetsSize_S * assetsBM_L # Small Growth (Low BM)
+# assets_BH <- assetsSize_B * assetsBM_H # Big Value (High BM)
+# assets_BN <- assetsSize_B * assetsBM_N # Big Neutral
+# assets_BL <- assetsSize_B * assetsBM_L # Big Growth (Low BM)
+# portSH <- portfolioSerie(mReturns, mMVclass, assets_SH)
+# portSN <- portfolioSerie(mReturns, mMVclass, assets_SN)
+# portSL <- portfolioSerie(mReturns, mMVclass, assets_SL)
+# portBH <- portfolioSerie(mReturns, mMVclass, assets_BH)
+# portBN <- portfolioSerie(mReturns, mMVclass, assets_BN)
+# portBL <- portfolioSerie(mReturns, mMVclass, assets_BL)
+#
+# HML <- 1/2 * (portSH$rVW + portBH$rVW) - 1/2 * (portSL$rVW + portBL$rVW)
+# ##           (Small Value + Big Value) - 1/2 (Small Growth + Big Growth)
 # 
-# AssetsBM_H <- portfolioAssets2(yBM,3,1)    # Value (High BM)
-# AssetsBM_N <- portfolioAssets2(yBM,3,2)    # Neutral
-# AssetsBM_L <- portfolioAssets2(yBM,3,3)    # Growth (Low BM)
-# 
-# AssetsSH <- AssetsSize_S * AssetsBM_H # Small Value (High BM)
-# AssetsSN <- AssetsSize_S * AssetsBM_N # Small Neutral
-# AssetsSL <- AssetsSize_S * AssetsBM_L # Small Growth (Low BM)
-# AssetsBH <- AssetsSize_B * AssetsBM_H # Big Value (High BM)
-# AssetsBN <- AssetsSize_B * AssetsBM_N # Big Neutral
-# AssetsBL <- AssetsSize_B * AssetsBM_L # Big Growth (Low BM)
-# 
-# AssetsSH <- apply(AssetsSH, 1, function(x) as.logical(x) ) # Small Neutral
-# AssetsSN <- apply(AssetsSN, 2, function(x) as.logical(x) ) # Small Neutral
-# AssetsSL <- apply(AssetsSL, 2, function(x) as.logical(x) ) # Small Growth (Low BM)
-# AssetsBH <- apply(AssetsBH, 2, function(x) as.logical(x) ) # Big Value (High BM)
-# AssetsBN <- apply(AssetsBN, 2, function(x) as.logical(x) ) # Big Neutral
-# AssetsBL <- apply(AssetsBL, 2, function(x) as.logical(x) ) # Big Growth (Low BM)
-# AssetsSH[1:5,1:5]
-# 
-# rownames(AssetsSH) <- rownames(yBM)
-# rownames(AssetsSN) <- rownames(yBM)
-# rownames(AssetsSL) <- rownames(yBM)
-# rownames(AssetsBH) <- rownames(yBM)
-# rownames(AssetsBN) <- rownames(yBM)
-# rownames(AssetsBL) <- rownames(yBM)
-# 
-# # ...........................
-# 
-# interactPortfolios <- function (x, y) {
-#     # Criando tabela
-#     tabela <- x
-#     for (i in 1:nrow(tabela)) {
-#         tabela[i,] <- as.logical(x[i,] * y[i,])
-#     }
-#     return(tabela)
-# }
-# 
-# 
-# # HML = 1/2 (Small Value + Big Value) - 1/2 (Small Growth + Big Growth)
-# FactorHML <- 1/2*(AssetsSH)
-# 
-# # SMB = 1/3 (Small Value + Small Neutral + Small Growth)
-# #       - 1/3 (Big Value + Big Neutral + Big Growth)
-# PortfolioSMB <- 
-#     PortfolioHML
-# debug(portfolioSerie)
-# serieSmallValue <- portfolioSerie(mReturns, mMVclass,AssetsSH)
-# warnings()
-# head(AssetsSH[,1:5])
-# head(mReturns[,1:5])
-# tail(mReturns[,1:5])
-# tail(AssetsSH[,1:5])
-# 
-# serieSmallValue <- portfolioSerie(mReturns, mMVclass,AssetsSH)
-# 
-# seriePortBM1 <- portfolioSerie(mReturns, mMVclass, portfolioAssets2(yBM,5,1))
-# 
+# SMB <- 1/3 * ( portSH$rVW + portSN$rVW + portSG$rVW ) - 1/3* ( portBV$rVW+portBN$rVW+portBG$rVW )
+# ##     1/3 (Small Value + Small Neutral + Small Growth) - 1/3 (Big Value + Big Neutral + Big Growth)
 
 ## 6. INVESTOR SENTIMENT AND ANOMALIES ## #####################################
 ##    Sentimento do Investidor e Anomalias
@@ -578,28 +538,7 @@ allQuintiles(yMomentum, mReturns, mMVclass)   ## MOMENTO
 
 # --- ANOTAÇÕES --- -----------------------------------------------------------
 
-### Teste replicação M&O (2011)
-# OK 1 - tratar amostra
-# OK 2 - calcular retornos
-# OK 3 - Calcular 5 carteiras p/ cada anomalia MOM, SIZ, LIQ
-# OK      Rebalanceamento: em JUNHO de acordo com variavel de interesse
-# OK      * Todos retornos mensais ponderado pelo valor de mercado
-#         Primeiras Anomalias: MOM, SIZ, LIQ (Depois BM, FC/P, L/P, ALAV)
-#         ANALIZAR RETORNO MÉDIO COM TRABALHO DE MM
-# OK 4 - Calcular BM (simples)
-# 5 - Calcular MKT
-# 7 - Comparar resultados CAPM
-#         Calcular Série Carteira de Mercado
-# 8 - Calcular FF Factors
-#         Calcular Série SMB
-#         Calcular Série HML
-# 9 - Comparar resultados FF
-# 10- Fazer todos os fatores juntos
-#         Calcular Série LIQ
-#         Calcular Série MOM
 
-### Outras informacoes:
-# variavel de interesse = criterio = estrategia
 
 #' RESULTADOS
 

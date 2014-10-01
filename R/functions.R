@@ -242,18 +242,85 @@ coletaIPOnaCVM <- function (ano) {
     } else { print("Ano sem informação") }
 }
 
+coletaSubsequentesnaCVM <- function (ano) {
+    require(XML)
+    # COLETANDO OFERTAS SUBSEQUENTES PRIMARIAS
+    # http://www.cvm.gov.br/asp/cvmwww/registro/ofertasreg2/acoes3.asp?ano=2013
+    url <- "http://www.cvm.gov.br/asp/cvmwww/registro/ofertasreg2/acoes3.asp?ano="
+    url <- paste(url, ano, sep="")
+    pagina <- readHTMLTable(url, stringsAsFactors = F)
+    numero_linhas <- length(attributes(pagina)[[1]])
+    if ( numero_linhas > 1 ) {
+        for (i in 2:numero_linhas) {
+            sub_linhas <- length(pagina[[i]][,1])
+            for ( j in 1:sub_linhas) {
+                if ( !exists("tabela") ) {
+                    # SE FOR A TABELA NAO EXISTE, CRIA
+                    tabela <- data.frame(data=pagina[[i]][j,2],
+                                         empresa=pagina[[i]][j,1],
+                                         tipo=pagina[[i]][j,3],
+                                         valor=pagina[[i]][j,4],
+                                         stringsAsFactors=F)
+                } else { # SE EXISTE, APENAS ADICIONAR LINHAS
+                    tabela <- rbind(tabela,c(pagina[[i]][j,2],
+                                             pagina[[i]][j,1],
+                                             pagina[[i]][j,3],
+                                             pagina[[i]][j,4]))
+                }
+            }
+        }
+    }
+    # COLETANDO OFERTAS SUBSEQUENTES SECUNDARIAS
+    url <- "http://www.cvm.gov.br/asp/cvmwww/registro/ofertasreg2/secnd4.asp?grp_emis=1&ano="
+    url <- paste(url, ano, sep="")
+    pagina <- readHTMLTable(url, stringsAsFactors = F)
+    numero_linhas <- length(attributes(pagina)[[1]])
+    if ( numero_linhas > 1 ) {
+        for (i in 2:numero_linhas) {
+            sub_linhas <- length(pagina[[i]][,1])
+            for ( j in 1:sub_linhas) {
+                if ( !exists("tabela") ) {
+                    # SE FOR A TABELA NAO EXISTE, CRIA
+                    tabela <- data.frame(data=pagina[[i]][j,2],
+                                         empresa=pagina[[i]][j,1],
+                                         tipo="SEC",
+                                         valor=pagina[[i]][j,3],
+                                         stringsAsFactors=F)
+                } else { # SE EXISTE, APENAS ADICIONAR LINHAS
+                    tabela <- rbind(tabela,c(pagina[[i]][j,2],
+                                             pagina[[i]][j,1],
+                                             "SEC",
+                                             pagina[[i]][j,3]))
+                }
+            }
+        }
+    }
+    if ( exists("tabela") ) {
+        tabela <- tabela[ !is.na(tabela$valor) ,]
+        tabela <- tabela[ !as.logical(sapply(tabela[,2], FUN=pmatch, x="TOTAL", nomatch=0)) ,]
+        row.names(tabela) <- seq(1:nrow(tabela))
+        return(tabela)
+    } else { print("Ano sem informação") }
+}
+
 coletaVariosAnosCVM <- function(anos, funcao) {
-    print("Acho bom você ir tomar um café, isso pode demorar um pouco.")
+    cat("Acho bom você ir tomar um café, isso pode demorar um pouco.\n")
     variosAnos <- funcao(anos[1])
-    print(paste(anos[1], "OK"))
+    cat(paste(anos[1], "OK\n"))
     for (n in anos[2:length(anos)]) {
         variosAnos <- rbind(variosAnos, funcao(n))
-        print(paste(n, "OK"))
+        cat(paste(n, "OK\n"))
         #Sys.sleep(3)
     }
-    print("Até que enfim, acabou!!!")
+    cat("Até que enfim, acabou!!!")
     return(variosAnos)
 }
+
+cleanString <- function(x){
+    tmp <- iconv(x, from="UTF8", to ="ASCII//TRANSLIT")
+    gsub("[^[:alpha:]]", " ", tmp)
+}
+
 
 chooseLAG <- function (m) {
     
@@ -312,7 +379,7 @@ portfolioSelectAssets <- function (V, nPort, iPort, report=F) {
     ## um portfolio.
     ##
     ## ARGUMENTOS:
-    ## V     ... Variavel de Interesse(criterio/caracteristica).
+    ## V     ... Variavel de Interesse(criterio/caracteristica/estrategia).
     ## nPort ... Número de portfolios
     ## iPort ... Portfolio de interesse
     ##

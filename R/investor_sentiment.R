@@ -37,8 +37,6 @@
 
 ## Definir Parametros / Set Parameters
 setwd("C:/Dropbox/investorSentiment") # Pasta de Trabalho / Working Directory
-START        <- as.Date("2000-06-01") # Data Inicial / Initial Date
-END          <- as.Date("2014-07-31") # Data Final / Final Date
 PERIOD.XTS   <- "1999-06/2014-07"     # Periodo / Period
 RETORNOS     <- 
 

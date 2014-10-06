@@ -178,7 +178,7 @@ coletaDEBnaCVM <- function (ano) {
         tabela <- tabela[ !as.logical(sapply(tabela[,2], FUN=pmatch, x="TOTAL", nomatch=0)) ,]
         row.names(tabela) <- seq(1:nrow(tabela))
         return(tabela)
-    } else { print("Ano sem informação") }
+    } else { cat(paste("Ano de ",ano ," sem informação.\n")) }
 }
 
 coletaIPOnaCVM <- function (ano) {
@@ -238,7 +238,7 @@ coletaIPOnaCVM <- function (ano) {
         tabela <- tabela[ !as.logical(sapply(tabela[,2], FUN=pmatch, x="TOTAL", nomatch=0)) ,]
         row.names(tabela) <- seq(1:nrow(tabela))
         return(tabela)
-    } else { print("Ano sem informação") }
+    } else { cat(paste("Ano de ",ano ," sem informação.\n")) }
 }
 
 coletaSubsequentesnaCVM <- function (ano) {
@@ -299,11 +299,11 @@ coletaSubsequentesnaCVM <- function (ano) {
         tabela <- tabela[ !as.logical(sapply(tabela[,2], FUN=pmatch, x="TOTAL", nomatch=0)) ,]
         row.names(tabela) <- seq(1:nrow(tabela))
         return(tabela)
-    } else { print("Ano sem informação") }
+    } else { cat(paste("Ano de ",ano ," sem informação.\n")) }
 }
 
 coletaVariosAnosCVM <- function(anos, funcao) {
-    cat("Acho bom você ir tomar um café, isso pode demorar um pouco.\n")
+    cat("Baixando dados direto do site da CVM.\n")
     variosAnos <- funcao(anos[1])
     cat(paste(anos[1], "OK\n"))
     for (n in anos[2:length(anos)]) {
@@ -311,7 +311,7 @@ coletaVariosAnosCVM <- function(anos, funcao) {
         cat(paste(n, "OK\n"))
         #Sys.sleep(3)
     }
-    cat("Até que enfim, acabou!!!")
+    cat("FIM")
     return(variosAnos)
 }
 

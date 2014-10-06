@@ -16,20 +16,22 @@
 ##
 
 ## COISAS PRA FAZER AINDA ## ###################################################
+## - Organizar DASHBOARD
 ## - Deixar filtro de data do "Rf <- importaBaseCSV" automatico
 ## - Simplificar modelos com funcoes
 ##   - Funcao LongShortSeries
-## - Todas as regressoes e painel com os interceptos e o R2
 ## - Incluir calculo no R de todas as proxies para o Indice de Sentimento
-##   - Organizar Calculo do S (Solucao Interpolacao/L)
+##   - Organizar Calculo do S (Solucoes: Interpolacao ou Media)
 ##   - Calcular PVOL
-##   - Coletar RIPO
+##   - Coletar RIPO (Solucao missing values MMA)
 ## - Calcular variavel MOMENTO como retorno de jul/(n-1):mai/(n  )
 ## - VM Empresa qnd ON e PN / VM Classe qnd so uma classe na amostra
 ## - FAZER UM FILTRO DE DATA PRA mProxies em breve
 ## - Testar replicação M&O (2011)
 ## - Testar Anomalias: FC/P, L/P, ALAV
 ## - Calcular demais fatores (LIQ e MOM)
+## - Analise em Painel
+## 
 
 #' 
 
@@ -37,23 +39,43 @@
 
 ## Definir Parametros / Set Parameters
 setwd("C:/Dropbox/investorSentiment") # Pasta de Trabalho / Working Directory
-PERIOD.XTS   <- "1999-06/2014-07"     # Periodo / Period
-RETORNOS     <- 
+
+PERIOD.n <- 1999 # Ano Inicial
+PERIOD.N <- 2014 # Ano Final
+
+## Periodo Mensal / Monthly Period
+PERIOD.XTS <- paste(PERIOD.n,"-06/", PERIOD.N, "-06", sep="")
+#                   JUN/n        a     JUN/N    (Ex. 1999-06/2014-06)
+
+## Periodo Anual (Dados de negociacoes) / Yearly  Period
+PERIOD.JUN <- paste(PERIOD.n+1,"-06/", PERIOD.N-1, "-06", sep="")
+#                   JUN/(n+1)    a    JUN/(N-1) (Ex. 2000-06/2013-06)
+
+## Periodo Anual (Dados de contabeis) / Yearly  Period
+PERIOD.DEZ <- paste(PERIOD.n,"-12/", PERIOD.N-2, "-12", sep="")
+#                      DEZ/n     a    DEZ/(N-2) (Ex. 1999-12/2012-12)
+
+## Periodo p/ Proxies Sentimento
+PERIOD.PRX <- paste(PERIOD.n,"-01/", PERIOD.N, "-06", sep="")
+#                      JAN/n     a        JUN/N (Ex. 1999-01/2014-06)
+
+## Periodo momento (jul do ano n-1 a mai do ano n)
+## Para calculo do das Carteiras: precos  de jun/(n  ):jun/(n+1) (13 meses)
+##                                retorno de jul/(n  ):jun/(n+1) (12 meses)
+##
+## Para calculo do Fator Momento: precos  de jun/(n-1):mai/(n  ) (12 meses)
+##                                retorno de jul/(n-1):mai/(n  ) (11 meses)
+##
 
 ## Instalar pacotes / Install packages
 ip <- installed.packages()
-if ( !("xts"       %in% ip) ) { install.packages("xts") }
-if ( !("lubridate" %in% ip) ) { install.packages("lubridate") } ; rm(ip)
-
-
-# if (!(require(xts, character.only=T, quietly=T))) {
-#     install.packages(package)
-#     library(package, character.only=T)
-# }
-
+if ( !("xts"       %in% ip) ) { install.packages("xts")       }
+if ( !("lubridate" %in% ip) ) { install.packages("lubridate") }
+if ( !("XML"       %in% ip) ) { install.packages("XML")       } ; rm(ip)
 ## Carregar pacotes / Load packages
-library(xts)
-library(lubridate)
+library("xts")
+library("lubridate")
+library("XML")
 
 ## Executar minhas funçoes / Run my functions
 source("R/functions.R")
@@ -68,49 +90,52 @@ source("R/functions.R")
 ### Importar Dados Online / Load Online Data # ---------------------------------
 ## COLETA DIRETO DO SITE DA CVM EM DESENVOLVIMENTO
 
-# ## Baixar dados de IPO do Site da CVM
-# IPOs <- coletaVariosAnosCVM(1999:2013, coletaIPOnaCVM)
-# ## Baixar dados de emissão de dívidas
-# DEBs <- coletaVariosAnosCVM(1999:2013, coletaDEBnaCVM)
-# ## Baixar dados de emissão de açoes Subsequentes
-# SUBs <- coletaVariosAnosCVM(1999:2013, coletaSubsequentesnaCVM)
-# ## Transformar dados de valor em decimeal (substitui virgula por ponto)
-# IPOs$valor <- as.numeric(gsub(",", ".", gsub("\\.", "",  IPOs$valor, fixed=F)))
-# DEBs$valor <- as.numeric(gsub(",", ".", gsub("\\.", "",  DEBs$valor, fixed=F)))
-# SUBs$valor <- as.numeric(gsub(",", ".", gsub("\\.", "",  SUBs$valor, fixed=F)))
+## Baixar dados de IPO do Site da CVM
+IPOs <- coletaVariosAnosCVM(PERIOD.n:PERIOD.N, coletaIPOnaCVM)
+## Baixar dados de emissão de dívidas
+DEBs <- coletaVariosAnosCVM(PERIOD.n:PERIOD.N, coletaDEBnaCVM)
+## Baixar dados de emissão de açoes Subsequentes
+SUBs <- coletaVariosAnosCVM(PERIOD.n:PERIOD.N, coletaSubsequentesnaCVM)
 
-# ## Colocar as Datas no Formato do R
-# IPOs$data <- as.Date(IPOs$data, format="%d/%m/%Y")
-# DEBs$data <- as.Date(DEBs$data, format="%d/%m/%Y")
-# SUBs$data <- as.Date(SUBs$data, format="%d/%m/%Y")
-#
-# CVM.IPOs <- IPOs[order(IPOs$data, IPOs$empresa),] # Ordenar matriz de IPOs
-# CVM.DEBs <- DEBs[order(DEBs$data, DEBs$empresa),] # Ordenar matriz de DEBs
-# 
-# ## Organizando os nomes das empresas
-# IPOs$nome_antigo <- IPOs$empresa
-# # IPOs$empresa <- IPOs$nome_antigo
-# IPOs$empresa <- gsub("^\\** ", "", IPOs$empresa)     # Retirar "** " no comeco
-# IPOs$empresa <- gsub("S\\.A\\.", "SA", IPOs$empresa) # Substituir S.A. por SA
-# IPOs$empresa <- gsub("S.A", "SA", IPOs$empresa) # Substituir S.A e S/A por SA
-# IPOs$empresa <- gsub("\\-", "", IPOs$empresa)   # Retirar todos os tracos
-# IPOs$empresa <- gsub("  ", " ", IPOs$empresa)   # Retirar 2 espacos juntos
-# IPOs$empresa <- cleanString(IPOs$empresa)       # Substituir caracteris espec.
-# IPOs$empresa <- toupper(IPOs$empresa)           # Colocar em letra maiuscula
-# IPOs$emp     <- substr(IPOs$empresa,1,12)       # Gerar STRING de comparacao
-# IPOs$D       <- !(duplicated(IPOs$emp))         # Nao duplicados = TRUE
-#
-# ## Verificando Quantidade de IPO por ano 
-# ano      <- substr(IPOs$data[IPOs$D],1,4)
-# mes      <- substr(IPOs$data[IPOs$D],6,7)
-# nipo     <- data.frame(table(ano, mes))
-# nipo$ano <- as.numeric(nipo$ano)
-# nipo$mes <- as.numeric(nipo$mes)
-# nipo     <- nipo[order(nipo$ano,nipo$mes),]
-# rownames(nipo) <- seq(as.Date("1999/1/1"), as.Date("2013/12/1"), by="month")
-# nipo$ano <- NULL ; nipo$mes <- NULL ; colnames(nipo) <- "nipo"
-# # nipos <- as.data.frame(cbind(CVM=nipo$nipo[25:156],BVSP=mProxies$NIPO))
-# rm(list=c("ano","mes","IPOs2"))
+## Transformar dados de valor em decimeal (substitui virgula por ponto)
+IPOs$valor <- as.numeric(gsub(",", ".", gsub("\\.", "",  IPOs$valor, fixed=F)))
+DEBs$valor <- as.numeric(gsub(",", ".", gsub("\\.", "",  DEBs$valor, fixed=F)))
+SUBs$valor <- as.numeric(gsub(",", ".", gsub("\\.", "",  SUBs$valor, fixed=F)))
+
+## Colocar as Datas no Formato do R
+IPOs$data <- as.Date(IPOs$data, format="%d/%m/%Y")
+DEBs$data <- as.Date(DEBs$data, format="%d/%m/%Y")
+SUBs$data <- as.Date(SUBs$data, format="%d/%m/%Y")
+
+## Organizando os nomes das empresas
+IPOs$nome_antigo <- IPOs$empresa
+# IPOs$empresa <- IPOs$nome_antigo
+IPOs$empresa <- gsub("^\\** ", "", IPOs$empresa)     # Retirar "** " no comeco
+IPOs$empresa <- gsub("S\\.A\\.", "SA", IPOs$empresa) # Substituir S.A. por SA
+IPOs$empresa <- gsub("S.A", "SA", IPOs$empresa) # Substituir S.A e S/A por SA
+IPOs$empresa <- gsub("\\-", "", IPOs$empresa)   # Retirar todos os tracos
+IPOs$empresa <- gsub("  ", " ", IPOs$empresa)   # Retirar 2 espacos juntos
+IPOs$empresa <- cleanString(IPOs$empresa)       # Substituir caracteris espec.
+IPOs$empresa <- toupper(IPOs$empresa)           # Colocar em letra maiuscula
+
+# Deixando apenas uma transação por empresa
+IPOs$emp     <- substr(IPOs$empresa,1,12)       # Gerar STRING de comparacao
+IPOs$D       <- !(duplicated(IPOs$emp))         # Nao duplicados = TRUE
+
+CVM.IPOs <- IPOs[order(IPOs$data, IPOs$empresa),] # Ordenar matriz de IPOs
+CVM.DEBs <- DEBs[order(DEBs$data, DEBs$empresa),] # Ordenar matriz de DEBs
+
+## Verificando Quantidade de IPO por ano 
+ano      <- substr(IPOs$data[IPOs$D],1,4)
+mes      <- substr(IPOs$data[IPOs$D],6,7)
+nipo     <- data.frame(table(ano, mes))
+nipo$ano <- as.numeric(nipo$ano)
+nipo$mes <- as.numeric(nipo$mes)
+nipo     <- nipo[order(nipo$ano,nipo$mes),]
+rownames(nipo) <- seq(as.Date("1999/1/1"), as.Date("2013/12/1"), by="month")
+nipo$ano <- NULL ; nipo$mes <- NULL ; colnames(nipo) <- "nipo"
+# nipos <- as.data.frame(cbind(CVM=nipo$nipo[25:156],BVSP=mProxies$NIPO))
+rm(list=c("ano","mes","IPOs2"))
 # 
 # CVM.IPOs <- IPOs ; rm(IPOs)
 # CVM.DEBs <- DEBs ; rm(DEBs)
@@ -785,16 +810,15 @@ PCAstep3$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sent
 
 # ## Quintis conforme Anomalias # ------------------------------------------------
 allQuintiles(yMVfirmJun,  mReturns, mMVclass) ## TAMANHO  (VM Empresa Jun)
-allQuintiles(yMVfirmDez, mReturns, mMVclass)  ## TAMANHO  (VM Empresa Dez)
 allQuintiles(yMVclassJun, mReturns, mMVclass) ## TAMANHO  (VM Classe  Jun)
-allQuintiles(yMVclassDez, mReturns, mMVclass) ## TAMANHO  (VM Classe  Dez)
 allQuintiles(yVolumeJun, mReturns, mMVclass)  ## LIQUIDEZ (Volume Medio) JUN
-allQuintiles(yVolumeDez, mReturns, mMVclass)  ## LIQUIDEZ (Volume Medio) DEZ ñ
 allQuintiles(yBM, mReturns, mMVclass)         ## BM
 
-require(xts)
 yMomentum <- period.apply(mReturns,endpoints(mReturns,'years'), mean)
 yMomentum   <- cleanData(yMomentum,   ySample2)
 yMomentum <- yMomentum[-16,]
 # rownames (yMomentum) <- rownames(yVolumeJun)
 allQuintiles(yMomentum, mReturns, mMVclass)   ## MOMENTO
+
+
+

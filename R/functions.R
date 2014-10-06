@@ -30,7 +30,7 @@ importaBaseCSV <- function(arquivo, periodo, formato="%d/%m/%Y", ignora=0) {
     }
     
     # Filtrando Periodo
-    tempXTS <- as.xts(tabela)[PERIOD.XTS]
+    tempXTS <- as.xts(tabela)[periodo]
     tabela  <- data.frame(as.matrix(tempXTS))
     
     return(tabela)
@@ -304,22 +304,87 @@ coletaSubsequentesnaCVM <- function (ano) {
 
 coletaVariosAnosCVM <- function(anos, funcao) {
     cat("Baixando dados direto do site da CVM.\n")
-    variosAnos <- funcao(anos[1])
+    Out <- funcao(anos[1])
     cat(paste(anos[1], "OK\n"))
     for (n in anos[2:length(anos)]) {
-        variosAnos <- rbind(variosAnos, funcao(n))
+        Out <- rbind(Out, funcao(n))
         cat(paste(n, "OK\n"))
         #Sys.sleep(3)
     }
+    
+    # Transformar dados de valor em decimeal (substitui virgula por ponto)
+    Out$valor <- as.numeric(gsub(",", ".", gsub("\\.", "", Out$valor, fixed=F)))
+    
+    Out$data <- as.Date(Out$data, format="%d/%m/%Y") # Transformar Formato Datas
+    Out <- Out[order(Out$data, Out$empresa),]        # Ordenar matriz
+    rownames(Out) <- NULL                            # Ordem antiga, irrelevante
+    
+    Out$empresa0 <- Out$empresa              # Copia dos nomes das empresas coletada
+    Out$empresa  <- cleanString(Out$empresa) # Tratar caracteris dos nomes das empresas
+    
     cat("FIM")
-    return(variosAnos)
+    return(Out)
 }
 
 cleanString <- function(x){
+    # Trata os dados brutos dos nomes das empresas
+    
+    x <- gsub("^\\** ", "", x)     # Retirar "** " no comeco
+    x <- gsub("S\\.A\\.", "SA", x) # Substituir S.A. por SA
+    x <- gsub("S.A", "SA", x)      # Substituir S.A e S/A por SA
+    x <- gsub("\\-", "", x)        # Retirar todos os tracos
+    x <- gsub("  ", " ", x)        # Retirar 2 espacos juntos
+    
+    # Substituir caracteris espec.
     tmp <- iconv(x, from="UTF8", to ="ASCII//TRANSLIT")
-    gsub("[^[:alpha:]]", " ", tmp)
+    x   <- gsub("[^[:alpha:]]", " ", tmp)
+    
+    x <- toupper(x)           # Colocar em letra maiuscula
+    
+    return(x)
 }
 
+calcularNIPO <- function(Dados) {
+    # Matriz de dados baixada da CVM
+    
+    # Retirar transacoes da mesma empresa
+    EMPRESA  <- substr(Dados$empresa,1,12) # Gerar STRING de comparacao
+    REPETIDO <- duplicated(EMPRESA)        # Vetor de empresas que repetiram
+    
+    ## Verificando Quantidade de IPO por ano 
+    ano       <- substr(Dados$data[!REPETIDO],1,4)
+    mes       <- substr(Dados$data[!REPETIDO],6,7)
+    nipo      <- data.frame(table(ano, mes))
+    rownames(nipo) <- as.Date(paste(nipo$ano, nipo$mes, "01", sep="-"))
+    nipo$ano  <- as.numeric(nipo$ano)
+    nipo$mes  <- as.numeric(nipo$mes)
+    nipo      <- nipo[order(nipo$ano,nipo$mes),]
+    nipo$ano <- NULL ; nipo$mes <- NULL
+    colnames(nipo) <- "CVM"
+    return(nipo)
+}
+
+calcularS <- function(IPO, Subsequentes, Dividas) {
+    CVM.S  <- IPO[c("data", "valor")]
+    CVM.S2 <- Subsequentes[c("data", "valor")]
+    CVM.S3 <- Dividas[c("data", "valor")]
+    
+    CVM.S$tipo  <- "ACOES" ; CVM.S2$tipo <- "ACOES" ; CVM.S3$tipo <- "DIVID"
+    
+    CVM.S  <- rbind(CVM.S, CVM.S2, CVM.S3)
+    CVM.S$mes <- as.numeric(substr(CVM.S$data, 6,7))
+    CVM.S$ano <- as.numeric(substr(CVM.S$data, 1,4))
+    
+    Out <- as.data.frame(xtabs(valor~ano+mes, CVM.S[(CVM.S$tipo=="ACOES"),]))
+    tmp <- as.data.frame(xtabs(valor~ano+mes, CVM.S[(CVM.S$tipo=="DIVID"),]))$Freq
+    Out <- cbind(Out,tmp)
+    colnames(Out) <- c("Y","M","A","DEB")
+    Out <- Out[order(Out$Y,Out$M),]
+    rownames(Out) <- as.Date(paste(Out$Y, Out$M, "01", sep="-"))
+    Out$Y <- NULL ; Out$M <- NULL
+    Out$Issues <- Out$A / ( Out$A + Out$DEB)
+    return(Out)
+}
 
 chooseLAG <- function (m) {
     

@@ -15,24 +15,6 @@
 ## 6. INVESTOR SENTIMENT AND ANOMALIES
 ##
 
-## COISAS PRA FAZER AINDA ## ###################################################
-## - Organizar DASHBOARD
-## - Deixar filtro de data do "Rf <- importaBaseCSV" automatico
-## - Simplificar modelos com funcoes
-##   - Funcao LongShortSeries
-## - Incluir calculo no R de todas as proxies para o Indice de Sentimento
-##   - Organizar Calculo do S (Solucoes: Interpolacao ou Media)
-##   - Calcular PVOL
-##   - Coletar RIPO (Solucao missing values MMA)
-## - Calcular variavel MOMENTO como retorno de jul/(n-1):mai/(n  )
-## - VM Empresa qnd ON e PN / VM Classe qnd so uma classe na amostra
-## - FAZER UM FILTRO DE DATA PRA mProxies em breve
-## - Testar replicação M&O (2011)
-## - Testar Anomalias: FC/P, L/P, ALAV
-## - Calcular demais fatores (LIQ e MOM)
-## - Analise em Painel
-## 
-
 #' 
 
 ## 1. SETTINGS ## ##############################################################
@@ -55,10 +37,6 @@ PERIOD.JUN <- paste(PERIOD.n+1,"-06/", PERIOD.N-1, "-06", sep="")
 PERIOD.DEZ <- paste(PERIOD.n,"-12/", PERIOD.N-2, "-12", sep="")
 #                      DEZ/n     a    DEZ/(N-2) (Ex. 1999-12/2012-12)
 
-## Periodo p/ Proxies Sentimento
-PERIOD.PRX <- paste(PERIOD.n,"-01/", PERIOD.N, "-06", sep="")
-#                      JAN/n     a        JUN/N (Ex. 1999-01/2014-06)
-
 ## Periodo momento (jul do ano n-1 a mai do ano n)
 ## Para calculo do das Carteiras: precos  de jun/(n  ):jun/(n+1) (13 meses)
 ##                                retorno de jul/(n  ):jun/(n+1) (12 meses)
@@ -71,11 +49,13 @@ PERIOD.PRX <- paste(PERIOD.n,"-01/", PERIOD.N, "-06", sep="")
 ip <- installed.packages()
 if ( !("xts"       %in% ip) ) { install.packages("xts")       }
 if ( !("lubridate" %in% ip) ) { install.packages("lubridate") }
-if ( !("XML"       %in% ip) ) { install.packages("XML")       } ; rm(ip)
+if ( !("XML"       %in% ip) ) { install.packages("XML")       }
+if ( !("Quandl"    %in% ip) ) { install.packages("Quandl")    } ; rm(ip)
 ## Carregar pacotes / Load packages
 library("xts")
 library("lubridate")
 library("XML")
+library("Quandl")
 
 ## Executar minhas funçoes / Run my functions
 source("R/functions.R")
@@ -88,83 +68,31 @@ source("R/functions.R")
 ## 2.1 Importar Dados / Load Data # ============================================
 
 ### Importar Dados Online / Load Online Data # ---------------------------------
-## COLETA DIRETO DO SITE DA CVM EM DESENVOLVIMENTO
 
-## Baixar dados de IPO do Site da CVM
-IPOs <- coletaVariosAnosCVM(PERIOD.n:PERIOD.N, coletaIPOnaCVM)
-## Baixar dados de emissão de dívidas
-DEBs <- coletaVariosAnosCVM(PERIOD.n:PERIOD.N, coletaDEBnaCVM)
-## Baixar dados de emissão de açoes Subsequentes
-SUBs <- coletaVariosAnosCVM(PERIOD.n:PERIOD.N, coletaSubsequentesnaCVM)
+### BAIXAR E SALVAR DADOS LOCALMENTE ###
+# # Emissoes de Acoes Iniciais - IPO (Fonte: Site CVM)
+# dbCVM_IPO <- coletaVariosAnosCVM(PERIOD.n:PERIOD.N, coletaIPOnaCVM)
+# write.table(dbCVM_IPO, "Data/IPOs.csv", quote=F, sep=";", row.names=F)
+# # Emissoes de Acoes Subsequentes (Fonte: Site CVM)
+# dbCVM_SUB <- coletaVariosAnosCVM(PERIOD.n:PERIOD.N, coletaSubsequentesnaCVM)
+# write.table(dbCVM_SUB, "Data/SUBs.csv", quote=F, sep=";", row.names=F)
+# # Emissoes de Dividas (Fonte: Site CVM)
+# dbCVM_DEB <- coletaVariosAnosCVM(PERIOD.n:PERIOD.N, coletaDEBnaCVM)
+# write.table(dbCVM_DEB, "Data/DEBs.csv", quote=F, sep=";", row.names=F)
 
-## Transformar dados de valor em decimeal (substitui virgula por ponto)
-IPOs$valor <- as.numeric(gsub(",", ".", gsub("\\.", "",  IPOs$valor, fixed=F)))
-DEBs$valor <- as.numeric(gsub(",", ".", gsub("\\.", "",  DEBs$valor, fixed=F)))
-SUBs$valor <- as.numeric(gsub(",", ".", gsub("\\.", "",  SUBs$valor, fixed=F)))
-
-## Colocar as Datas no Formato do R
-IPOs$data <- as.Date(IPOs$data, format="%d/%m/%Y")
-DEBs$data <- as.Date(DEBs$data, format="%d/%m/%Y")
-SUBs$data <- as.Date(SUBs$data, format="%d/%m/%Y")
-
-## Organizando os nomes das empresas
-IPOs$nome_antigo <- IPOs$empresa
-# IPOs$empresa <- IPOs$nome_antigo
-IPOs$empresa <- gsub("^\\** ", "", IPOs$empresa)     # Retirar "** " no comeco
-IPOs$empresa <- gsub("S\\.A\\.", "SA", IPOs$empresa) # Substituir S.A. por SA
-IPOs$empresa <- gsub("S.A", "SA", IPOs$empresa) # Substituir S.A e S/A por SA
-IPOs$empresa <- gsub("\\-", "", IPOs$empresa)   # Retirar todos os tracos
-IPOs$empresa <- gsub("  ", " ", IPOs$empresa)   # Retirar 2 espacos juntos
-IPOs$empresa <- cleanString(IPOs$empresa)       # Substituir caracteris espec.
-IPOs$empresa <- toupper(IPOs$empresa)           # Colocar em letra maiuscula
-
-# Deixando apenas uma transação por empresa
-IPOs$emp     <- substr(IPOs$empresa,1,12)       # Gerar STRING de comparacao
-IPOs$D       <- !(duplicated(IPOs$emp))         # Nao duplicados = TRUE
-
-CVM.IPOs <- IPOs[order(IPOs$data, IPOs$empresa),] # Ordenar matriz de IPOs
-CVM.DEBs <- DEBs[order(DEBs$data, DEBs$empresa),] # Ordenar matriz de DEBs
-
-## Verificando Quantidade de IPO por ano 
-ano      <- substr(IPOs$data[IPOs$D],1,4)
-mes      <- substr(IPOs$data[IPOs$D],6,7)
-nipo     <- data.frame(table(ano, mes))
-nipo$ano <- as.numeric(nipo$ano)
-nipo$mes <- as.numeric(nipo$mes)
-nipo     <- nipo[order(nipo$ano,nipo$mes),]
-rownames(nipo) <- seq(as.Date("1999/1/1"), as.Date("2013/12/1"), by="month")
-nipo$ano <- NULL ; nipo$mes <- NULL ; colnames(nipo) <- "nipo"
-# nipos <- as.data.frame(cbind(CVM=nipo$nipo[25:156],BVSP=mProxies$NIPO))
-rm(list=c("ano","mes","IPOs2"))
-# 
-# CVM.IPOs <- IPOs ; rm(IPOs)
-# CVM.DEBs <- DEBs ; rm(DEBs)
-# CVM.SUBs <- SUBs ; rm(SUBs)
-
-# S <- as.data.frame(xtabs(valor~ano+mes, CVM.S[(CVM.S$tipo=="ACOES"),]))
-# tmp <- as.data.frame(xtabs(valor~ano+mes, CVM.S[(CVM.S$tipo=="DIVID"),]))$Freq
-# S <- cbind(S,tmp) ; rm(tmp) ; colnames(S) <- c("Y","M","A","DEB")
-# rownames(S) <- NULL ; S$Y <- as.numeric(S$Y) ; S$M <- as.numeric(S$M)
-# S <- S[order(S$Y,S$M),]
-# S$Issues <- S$A / ( S$A + S$DEB)
-
-# # Guardando dados em formato txt e csv
-# write.table(IPOs, "Output/IPOs.txt", sep="\t", row.names = F)
-# write.table(DEBs, "Output/DEBs.txt", sep="\t", row.names = F)
-# write.table(IPOs, "Output/IPOs.csv", sep=";", row.names = F)
-# write.table(DEBs, file="Output/DEBs.csv", sep=";", row.names = F)
-# write.csv(IPOs, file="Output/IPOsCSV.csv", row.names = F)
-# write.csv(DEBs, file="Output/DEBsCSV.csv", row.names = F)
-# # IPO2 <- read.table("Output/IPOs.txt", sep="\t", skip=1, col.names=c("data","empresa","tipo","valor"))
-
-# CVM.S  <- CVM.IPOs[c("data", "valor")] ; rownames(CVM.S)  <- NULL
-# CVM.S2 <- CVM.SUBs[c("data", "valor")] ; rownames(CVM.S2) <- NULL
-# CVM.S3 <- CVM.DEBs[c("data", "valor")] ; rownames(CVM.S3) <- NULL
-# CVM.S$tipo  <- "ACOES" ; CVM.S2$tipo <- "ACOES" ; CVM.S3$tipo <- "DIVID"
-# CVM.S  <- rbind(CVM.S, CVM.S2, CVM.S3) ; rm(CVM.S2) ; rm(CVM.S3)
-# CVM.S$mes <- as.numeric(substr(CVM.S$data, 6,7))
-# CVM.S$ano <- as.numeric(substr(CVM.S$data, 1,4))
-# xtabs(~ano+mes, CVM.S)
+### LER DADOS BAIXADOS E SALVOS LOCALMENTE ###
+# Emissoes de Acoes Iniciais - IPO (Fonte: Site CVM)
+dbCVM_IPO <- read.table("Data/IPOs.csv", header=T,
+                        sep=";", stringsAsFactors = F)
+dbCVM_IPO$data <- as.Date(dbCVM_IPO$data)
+# Emissoes de Acoes Subsequentes (Fonte: Site CVM)
+dbCVM_SUB <- read.table("Data/SUBs.csv", header=T,
+                        sep=";",stringsAsFactors = F)
+dbCVM_SUB$data <- as.Date(dbCVM_SUB$data)
+# Emissoes de Dividas (Fonte: Site CVM)
+dbCVM_DEB <- read.table("Data/DEBs.csv", header=T,
+                        sep=";", stringsAsFactors = F)
+dbCVM_DEB$data <- as.Date(dbCVM_DEB$data)
 
 ### Ler Dados em CSV / Load CSV Data # -----------------------------------------
 
@@ -249,22 +177,7 @@ ySample5[yNegociab < 0.001] <- F ; ySample5[is.na(yNegociab)] <- F
 
 ## Amostra Final / Final Sampe
 ySample <- ySample5
-F1 <- sampleReport(ySample0, ySample1)
-F2 <- sampleReport(ySample0, ySample2)[,2:3]
-F3 <- sampleReport(ySample0, ySample3)[,2:3]
-F4 <- sampleReport(ySample0, ySample4)[,2:3]
-F5 <- sampleReport(ySample0, ySample5)[,2:3]
-colnames(F1) <- c("A.I.","F 1","%")
-colnames(F2) <- c("Filtro2","%")
-colnames(F3) <- c("Filtro3","%")
-colnames(F4) <- c("Filtro4","%")
-colnames(F5) <- c("Filtro5","%")
-# F1: Filtro de Empresas Nao Financeiras
-# F2: FILTRO DE 24 MESES
-# F3: Filtro Bovespa Negociability Index
-# F4: Filtro Valor de Mercado em 30/06 e 31/12
-# F5: Filtro Patrimonio Liquido
-cbind(F1, F2, F3, F4, F5) ; rm(list=c("F1","F2","F3","F4","F5"))
+sampleReportAll(ySample0, ySample1, ySample2, ySample3, ySample4, ySample5)
 
 # 2.3 Limpar Dados / Clean Data # ==============================================
 
@@ -276,7 +189,6 @@ yVolumeJun  <- cleanData(yVolumeJun,  ySample)
 yVolumeDez  <- cleanData(yVolumeDez,  ySample, LAG=1)
 yBM         <- cleanData(yBM,         ySample, LAG=1)
 yMomentum   <- cleanData(yMomentum,   ySample)
-
 rownames (yMomentum) <- rownames(yVolumeJun)
 
 ## 3. INVESTOR SENTIMENT INDEX ## #############################################
@@ -285,25 +197,144 @@ rownames (yMomentum) <- rownames(yVolumeJun)
 ## 3.2. Índice de Sentimento não Ortogonalizado
 ## 3.3. Índice de Sentimento Ortogonalizado à variáveis macroeconômicas  
 
-#== 3.1 Read/Compute Proxies = ===============================================
+#== 3.1 Read/Compute Proxies = =================================================
 
-mProxies   <- read.table ("Input/mProxies.csv",          # Read data
-                          header = T, sep=";", dec=",",
-                          row.names=1)
+## Periodo p/ Proxies Sentimento
+PERIOD.PRX <- paste(PERIOD.n,"-01/", PERIOD.N, "-06", sep="")
+#                      JAN/n     a        JUN/N (Ex. 1999-01/2014-06)
 
-DF   <- read.table ("Input/mProxies.csv",          # Read data
-                          header = T, sep=";", dec=",",
-                          row.names=1)
+### Calcular NIPO # ------------------------------------------------------------
 
-# TO DO: FAZER UM FILTRO DE DATA PRA mProxies em breve
-mProxies <- mProxies[!is.na(mProxies$NIPO_lagged),]
+prx_NIPO <- calcularNIPO(dbCVM_IPO)
 
-#as.dist(round(cor(mProxies, use="na.or.complete"),2))    # Correlations s/ NA
-as.dist(round(cor(mProxies, use="everything"),2))         # Correlations c/ Na
+### Calcular S # ---------------------------------------------------------------
+
+prx_S <- calcularS(dbCVM_IPO, dbCVM_SUB, dbCVM_DEB)
+
+# Tratar os dados faltantes
+library(TTR)
+# Substituindo valores zerados pela medias dos ultimos meses
+prx_S$A[3]              <- SMA(prx_S$A,   2)[prx_S$A==0][1]
+prx_S$A[prx_S$A==0]     <- EMA(prx_S$A,   6)[prx_S$A==0]
+prx_S$DEB[prx_S$DEB==0] <- EMA(prx_S$DEB, 6)[prx_S$DEB==0]
+# http://www.fmlabs.com/reference/default.htm?url=ExpMA.htm
+# Recalculando S
+prx_S$Issues <- prx_S$A / ( prx_S$A + prx_S$DEB)
+S <- prx_S ; S$A <- NULL ; S$DEB <- NULL
+
+prx_S <- as.data.frame(as.xts(prx_S)[PERIOD.PRX])
+
+### Calcular TURN # ------------------------------------------------------------
+
+prx_TURN <- calcularTURN ("Input/mNegociabilidade.csv",
+                          "Input/mQN.csv",
+                          #"Input/mQT.csv",
+                          "Input/mQTOutStanding.csv",
+                          PERIOD.PRX, 1, 0.01)
+
+## plot(ts(prx_TURN$dTURN, start(1999,1), frequency=12))
+
+### Calcular PVOL # ------------------------------------------------------------
+
+## Calcula a proxy PVOL - Premio Volatilidade
+## 
+## INPUTS
+##
+## require(lubridate)
+MV  <- importaBaseCSV("Input/mMarketValueFirm.csv", PERIOD.PRX, ignora=1)[,1:1108]
+tmp <- quarter(rownames(MV))!=c(quarter(rownames(MV))[-1],TRUE)
+qMVfirm <- MV[tmp,] ; rm(MV)
+
+qBookFirm <- importaBaseCSV("Input/qBookFirm.csv", PERIOD.PRX, ignora=1)[,1:1108]
+qBookFirm[qBookFirm<=0]     <- NA
+qMVfirm[qBookFirm<=0]       <- NA
+qBookFirm[is.na(qBookFirm)] <- NA
+qMVfirm[is.na(qBookFirm)]   <- NA
+qBookFirm[is.na(qMVfirm)]   <- NA
+qMVfirm[is.na(qMVfirm)]     <- NA
+
+qMB <- as.data.frame(mapply( function(mkt,book) { mkt/book },
+                             as.data.frame((qMVfirm)),
+                             as.data.frame((qBookFirm))) )
+rownames(qMB) <- rownames(qMVfirm)
+
+DP12m    <- importaBaseCSV("Input/mDP12m.csv", PERIOD.PRX, ignora = 1)[,1:1108]
+tmp <- quarter(rownames(DP12m))!=c(quarter(rownames(DP12m))[-1],TRUE)
+qDP12m <- DP12m[tmp,] ; rm(DP12m)
+
+# Valor de Mercado da Classe p/ ponderacao
+MV  <- importaBaseCSV("Input/mMarketValue.csv", PERIOD.PRX, ignora=1)
+tmp <- quarter(rownames(MV))!=c(quarter(rownames(MV))[-1],TRUE)
+qMVclass <- MV[tmp,1:108] ; rm(MV)
+
+# Media Ponderada pelo VM do MB das acoes de alta volatilidade (High Volatility)
+A  <- as.data.frame(t(portfolioSelectAssets(qDP12m, 3, 3)))
+MB <- as.data.frame(t(qMB))
+V  <- as.data.frame(t(qMVclass))
+MBhv <- mapply(function(mb,v,a) { sum(mb[a]*v[a]/sum(v[a], na.rm=T), na.rm=T) }
+               , MB, V, A )
+
+# Media Ponderada pelo VM do MB das acoes de baixa volatilidade (Low Volatility)
+A  <- as.data.frame(t(portfolioSelectAssets(qDP12m, 3, 1)))
+MBlv <- mapply(function(mb,v,a) { sum(mb[a]*v[a]/sum(v[a], na.rm=T), na.rm=T) }
+               , MB, V, A )
+rm(list=c("A","MB","V"))
+
+# Calcular PVOL
+prx_PVOL <- as.data.frame(MBhv)
+prx_PVOL$MBlv <- MBlv
+prx_PVOL$PVOL <- log(MBhv/MBlv)    
+prx_PVOL <- prx_PVOL[sort(rep(1:nrow(prx_PVOL),3)),]
+rownames(prx_PVOL) <- rownames(prx_TURN)
+rm(list=c("MBlv","MBhv"))
+
+
+
+### Organizar / Importar Proxies # ---------------------------------------------
+
+# # Codigo Antigo: Importar base de proxies calculadas pelo Excel
+# mProxies   <- read.table ("Input/mProxies.csv",          # Read data
+#                           header = T, sep=";", dec=",",
+#                           row.names=1)
+# mProxies <- mProxies[!is.na(mProxies$NIPO_lagged),]
+
+mProxies <- merge(prx_NIPO, prx_S, by = "row.names", all.y=T)
+mProxies$CVM[is.na(mProxies$CVM)] <- 0
+mProxies$A <- NULL ; mProxies$DEB <- NULL
+rownames(mProxies) <- mProxies$Row.names ; mProxies$Row.names <- NULL
+colnames(mProxies) <- c("NIPO", "S")
+
+mProxies <- merge(mProxies, prx_TURN, by = "row.names", all.y=T)
+mProxies$QT <- mProxies$QN <- mProxies$TURN <- NULL
+rownames(mProxies) <- mProxies$Row.names ; mProxies$Row.names <- NULL
+colnames(mProxies) <- c("NIPO", "S", "TURN")
+
+mProxies <- merge(mProxies, prx_PVOL, by = "row.names", all.y=T)
+mProxies$MBhv <- mProxies$MBlv <- NULL
+rownames(mProxies) <- mProxies$Row.names ; mProxies$Row.names <- NULL
+
+# mProxies      <- as.data.frame(prx_S$Issues) ; colnames(mProxies) <- "S"
+# mProxies$NIPO <- c(prx_NIPO$CVM,rep(0,6))
+# mProxies$TURN <- prx_TURN$dTURN
+# mProxies$PVOL <- prx_PVOL$PVOL
+# rownames(mProxies) <- rownames(prx_TURN)
+
+LAG <- 12
+mProxies$Slag <- c(rep(NA,LAG),mProxies$S[1:(nrow(mProxies)-LAG)])
+mProxies$NIPOlag <- c(rep(NA,LAG),mProxies$NIPO[1:(nrow(mProxies)-LAG)])
+mProxies$TURNlag <- c(rep(NA,LAG),mProxies$TURN[1:(nrow(mProxies)-LAG)])
+mProxies$PVOLlag <- c(rep(NA,LAG),mProxies$PVOL[1:(nrow(mProxies)-LAG)])
+
+# ## Plotar todas as Proxies
+# # plot(ts(mProxies, start(1999,1), frequency=12))
+
+## Correlations
+#   as.dist(round(cor(mProxies, use="everything"),2)) # c/ Na
+as.dist(round(cor(mProxies, use="na.or.complete"),2)) # s/ NA
 
 #== 3.2 First Step = ==========================================================
 # Estimating first component of all proxies and their lags and choose the best
-
+mProxies <- mProxies[!is.na(mProxies$Slag),]
 PCAstep1 <- prcomp(mProxies, scale=T)
 
 round(cor(PCAstep1$x[,"PC1"],mProxies),2)         # The correlations
@@ -321,34 +352,55 @@ cor(PCAstep1$x[,"PC1"],PCAstep2$x[,"PC1"]) # Correlation with PC1 of the 1º step
 summary(PCAstep2)                          # Proportion of Variance
 PCAstep2$rotation[,"PC1"] # Not orthogonalized index (osb.: not important)
 
+
+
 #== 3.4 Third Step = ==========================================================
 # Estimate orthogonilized proxies by the regression all raw proxies
 
-# Read macroeconomics variables
-mMacroeconomics   <- read.table ("Input/mMacroeconomics.csv",   header = T, 
-                                 sep=";", dec=",", na.strings="-", row.names=1)
+## PIB (% Change)
+## https://www.quandl.com/BCB/4380-GDP-monthly-current-prices-R-million
+data_inicial <- as.Date(paste(PERIOD.n,"-12-31", sep=""))
+PIB <- Quandl("BCB/4380",
+              trim_start=data_inicial, trim_end="2014-06-30",
+              transformation="rdiff", sort="asc")
 
-# Date Filter
-x <- as.Date(rownames(mMacroeconomics), format="%d/%m/%Y")
-mMacroeconomics <-  mMacroeconomics[(x >= as.Date("2001-01-01") &
-                                         x <= as.Date("2013-12-01")),]
-rm(x)
 
-# dummy SELIC igual a 1 quando a taxa cai em rela??o ao m?s anterior
-dSELIC <- c(0,as.numeric(embed(mMacroeconomics$SELIC,2)[,1] <= 
-                                 embed(mMacroeconomics$SELIC,2)[,2]
-))
 
-# dummy PIB igual a 1 quando o PIB sobe em rela??o ao m?s anterior
-dPIB   <- c(0,as.numeric(embed(mMacroeconomics$PIB,2)[,1] >=
-                                 embed(mMacroeconomics$PIB,2)[,2]
-))
+## OECD Dummy (Recession)
+## https://www.quandl.com/FRED/BRARECM
+data_inicial <- as.Date(paste(PERIOD.n+1,"-01-01", sep=""))
+RECESS <- Quandl("FRED/BRARECM",
+                 trim_start=data_inicial, trim_end="2014-06-30", sort="asc")
 
-# Retirando a série da Selic e deixando só a do PIB
-mMacroeconomics$SELIC <- NULL
-# Acrescentando o dPIB e o dSELIC
-mMacroeconomics <-cbind(mMacroeconomics, dPIB, dSELIC)
-rm(list=c("dPIB","dSELIC"))
+mMacroeconomics <- data.frame(PIB=PIB$Value, RECESS=RECESS$Value,
+                              row.names=PIB$Date)
+
+rm(list = c("PIB", "RECESS", "data_inicial"))
+
+## Consumo (% Change)
+
+# # Read macroeconomics variables
+# mMacroeconomics   <- read.table ("Input/mMacroeconomics.csv",   header = T, 
+#                                  sep=";", dec=",", na.strings="-", row.names=1)
+# # Date Filter
+# x <- as.Date(rownames(mMacroeconomics), format="%d/%m/%Y")
+# mMacroeconomics <-  mMacroeconomics[(x >= as.Date("2001-01-01") &
+#                                          x <= as.Date("2013-12-01")),]
+# rm(x)
+# ## https://www.quandl.com/FRED/BRARECM
+# # dummy SELIC igual a 1 quando a taxa cai em rela??o ao m?s anterior
+# dSELIC <- c(0,as.numeric(embed(mMacroeconomics$SELIC,2)[,1] <= 
+#                                  embed(mMacroeconomics$SELIC,2)[,2]
+# ))
+# # dummy PIB igual a 1 quando o PIB sobe em rela??o ao m?s anterior
+# dPIB   <- c(0,as.numeric(embed(mMacroeconomics$PIB,2)[,1] >=
+#                                  embed(mMacroeconomics$PIB,2)[,2]
+# ))
+# # Retirando a série da Selic e deixando só a do PIB
+# mMacroeconomics$SELIC <- NULL
+# # Acrescentando o dPIB e o dSELIC
+# mMacroeconomics <-cbind(mMacroeconomics, dPIB, dSELIC)
+# rm(list=c("dPIB","dSELIC"))
 
 # Estimando Proxies Ortogonalizada
 mProxiesOrtog <- mBestProxies
@@ -356,6 +408,9 @@ for ( i in 1:ncol(mProxiesOrtog)) {
         mProxiesOrtog[,i] <- lm(mBestProxies[,i] ~ data.matrix(mMacroeconomics))$residuals
 }
 rm(i)
+
+# ## Plotar todas as mProxiesOrtog
+# # plot(ts(mProxiesOrtog, start(1999,1), frequency=12))
 
 # Estimando Componentes Principais da Terceira Etapa
 PCAstep3 <-prcomp(mProxiesOrtog, scale=T)
@@ -375,7 +430,13 @@ summary(PCAstep3)
 screeplot(PCAstep3, type="line", main="Scree Plot Sentimento Ortogonalizado")
 
 PCAstep3$rotation[,"PC1"] * (-1) # Equacao do Indice de Sent. Ortogonalizado
-Sent <- ts(PCAstep3$x[,"PC1"], start=c(2001,1), end=c(2013,12), frequency=12)
+Sent <- ts(PCAstep3$x[,"PC1"]*(-1), start=c(2000,1), frequency=12)
+SentNO <- ts(PCAstep2$x[,"PC1"], start=c(2000,1), frequency=12)
+## Plotar Sentimento e SentimentoNO (Não Ortogonalizado)
+plot(SentNO, col="gray", lty="dashed")
+lines(Sent, col="blue")
+
+abline(h = 0, lty = 2)
 
 # ## 4. INVESTOR SENTIMENT AND ANOMALIES ## 
 # ## Sentimento do Investidor e Anomalias
@@ -390,7 +451,7 @@ Sent <- ts(PCAstep3$x[,"PC1"], start=c(2001,1), end=c(2013,12), frequency=12)
 # summary(lm(seriePortBM1$rVW[(1+LAG):156]  ~ PCAstep3$x[,"PC1"][1:(156-LAG)]))
 # length(seriePortBM1$rVW[13:156])
 # length(PCAstep3$x[,"PC1"][1:144])
-plot(Sent, main="Sentiment", ylab=NULL) ; lines(Sent, col="blue")
+plot(Sent, main="Sentiment", ylab=NULL, col="blue")
 
 ## 4. CONSTRUCT PORTFOLIOS ## #################################################
 ## 4. Portfolios
@@ -402,24 +463,6 @@ plot(Sent, main="Sentiment", ylab=NULL) ; lines(Sent, col="blue")
 ## 4.2.4 Serie de retorno dos demais fatores (MOM, LIQ)
 
 ## LongShort Stategies # -------------------------------------------------------
-# TAMANHO  (VM Classe  Jun)
-Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVclassJun, 5, 1))
-Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVclassJun, 5, 5))
-ls_TAM <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
-colMeans(ls_TAM)*100
-
-# TAMANHO  (VM Classe  Dez)
-Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVclassDez, 5, 1))
-Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVclassDez, 5, 5))
-ls_TAMdez <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
-colMeans(ls_TAMdez)*100
-
-# TAMANHO  (VM Empresa Jun)
-Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVfirmJun, 5, 1))
-Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVfirmJun, 5, 5))
-ls_TAMfirmJun <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
-colMeans(ls_TAMfirmJun)*100
-
 # TAMANHO  (VM Empresa Dez)
 Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVfirmDez, 5, 1))
 Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yMVfirmDez, 5, 5))
@@ -431,12 +474,6 @@ Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yVolumeJun, 5,
 Short <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yVolumeJun, 5, 5))
 ls_LIQ <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
 colMeans(ls_LIQ)*100
-
-# LIQUIDEZ (Volume Medio) DEZ ñ
-Long   <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yVolumeDez, 5, 1))
-Short  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yVolumeDez, 5, 5))
-ls_LIQdez <- data.frame(LONG=Long$rVW, SHORT=Short$rVW, row.names=rownames(Long))
-colMeans(ls_LIQdez)*100
 
 # BM
 Long  <- portfolioSerie(mReturns, mMVclass, portfolioSelectAssets(yBM, 5, 1))
@@ -461,17 +498,27 @@ colMeans(ls_MOM)*100
 ## 5.6 Fator Liquidez
 
 ## Ativo Livre de Risco
-Rf <- importaBaseCSV("Input/mMacroeconomics.csv")[-(1:12),]
-tmp <- as.xts(Rf)
-Rf  <- as.data.frame( diff(log(tmp), lag=1) ) ; rm(tmp)
+# Rf <- importaBaseCSV("Input/mMacroeconomics.csv")[-(1:12),]
+# tmp <- as.xts(Rf)
+# Rf  <- as.data.frame( diff(log(tmp), lag=1) ) ; rm(tmp)
+data_inicial <- as.Date(paste(PERIOD.n+1,"-07-01", sep=""))
+data_final   <- as.Date(paste(PERIOD.N-1,"-06-30", sep=""))
+SELIC <- Quandl("BCB/4390", type="ts", collapse="monthly", sort="asc",
+                # transformation="rdiff",
+                trim_start=data_inicial, trim_end=data_final)
+Rf  <- log(1+SELIC/100) ; rm(SELIC)
 
 ## Carteira de Mercado
-MKT <- portfolioSerie(mReturns, mMVclass, ySample)$rVW
+IBV  <- Quandl("BCB/7845", type="ts", collapse="monthly", sort="asc",
+                # transformation="rdiff",
+                trim_start=data_inicial-1, trim_end=data_final)
+IBV <- diff(log(IBV),1)
 
-Rf  <- Rf[1+(1:length(MKT)),]
-Rf  <- as.numeric(Rf$SELIC)
+MKT <- ts(portfolioSerie(mReturns, mMVclass, ySample)$rVW,
+          start=c(PERIOD.n+1,07), frequency=12)
 
 MKT <- MKT-Rf
+IBV <- IBV-Rf
 
 ## Fatores de Risco / Risk Factors
 ##
@@ -541,11 +588,13 @@ SMB <-(portF_SH$rVW+portF_SN$rVW+portF_SL$rVW)/3-(portF_BH$rVW+portF_BN$rVW+port
 #== 6.2 Predictive Regressions = ==============================================
 
 #   6.2.1 Sentiment and Returns - ---------------------------------------------
-# Sent <- ts(PCAstep3$x[,"PC1"], start=c(2001,1), end=c(2013,12), frequency=12)
-# L <- ts(ls_LIQ$LONG ,start=c(2000,7), end=c(2013,6), frequency=12)
 LAG <- 4
+N <- length(Sent)
 Sentiment <- as.numeric(Sent)[(1+LAG):152]
 
+runLongShort <- function (LongShortPort, Lag, Sentiment, ...) {
+    
+}
 ## TAMANHO
 Long      <- ls_TAM$LONG[1:(152-LAG)]
 Short     <- ls_TAM$SHORT[1:(152-LAG)]
@@ -819,6 +868,3 @@ yMomentum   <- cleanData(yMomentum,   ySample2)
 yMomentum <- yMomentum[-16,]
 # rownames (yMomentum) <- rownames(yVolumeJun)
 allQuintiles(yMomentum, mReturns, mMVclass)   ## MOMENTO
-
-
-

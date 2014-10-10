@@ -18,22 +18,19 @@ importaBaseCSV <- function(arquivo, periodo, formato="%d/%m/%Y", ignora=0) {
     #
     
     require(xts)
-
-    tabela <- read.table (arquivo, header = T, sep=";", dec=",", row.names=1,
-                          skip=ignora, na.strings="-", stringsAsFactors=F)
     
-    if ( formato=="%Y" ) {
-        data_completa <- paste(rownames(tabela),"-12-01", sep="")
-        row.names(tabela) <- as.Date(data_completa, "%Y-%m-%d")
-    } else {
-        row.names(tabela) <- as.Date(row.names(tabela), format=formato)
+    Out <- read.table (arquivo, header = T, sep=";", dec=",", row.names=1,
+                       skip=ignora, na.strings="-", stringsAsFactors=F)
+    
+    if ( formato=="%Y" ) { # Series anuais é acrescida "-12-01" ao ano.
+        data_completa <- paste(rownames(Out),"-12-01", sep="")
+        row.names(Out) <- as.Date(data_completa, "%Y-%m-%d")
+    } else { # Seires mensais é apenas transformado em data
+        row.names(Out) <- as.Date(row.names(Out), format=formato)
     }
     
-    # Filtrando Periodo
-    tempXTS <- as.xts(tabela)[periodo]
-    tabela  <- data.frame(as.matrix(tempXTS))
-    
-    return(tabela)
+    # Transformar Out em xts, filtrar periodo e retornar como data.frame
+    data.frame(as.matrix(as.xts(Out)[periodo]))
 }
 
 initialSample <-  function (rawPrices) {
@@ -84,6 +81,25 @@ sampleReport <- function (s0, s1) {
     Sample  <- cbind(Sample, as.data.frame(Sample1), Percent)
     colnames(Sample) <- c("Initial", "Final", "%")
     return(Sample)
+}
+
+sampleReportAll <- function(...) {
+    F1 <- sampleReport(ySample0, ySample1)
+    F2 <- sampleReport(ySample0, ySample2)[,2:3]
+    F3 <- sampleReport(ySample0, ySample3)[,2:3]
+    F4 <- sampleReport(ySample0, ySample4)[,2:3]
+    F5 <- sampleReport(ySample0, ySample5)[,2:3]
+    colnames(F1) <- c("A.I.","F 1","%")
+    colnames(F2) <- c("Filtro2","%")
+    colnames(F3) <- c("Filtro3","%")
+    colnames(F4) <- c("Filtro4","%")
+    colnames(F5) <- c("Filtro5","%")
+    # F1: Filtro de Empresas Nao Financeiras
+    # F2: FILTRO DE 24 MESES
+    # F3: Filtro Bovespa Negociability Index
+    # F4: Filtro Valor de Mercado em 30/06 e 31/12
+    # F5: Filtro Patrimonio Liquido
+    cbind(F1, F2, F3, F4, F5)
 }
 
 filterNo24months <- function(monthlyPrices, InitialSample) {
@@ -345,23 +361,30 @@ cleanString <- function(x){
 }
 
 calcularNIPO <- function(Dados) {
-    # Matriz de dados baixada da CVM
     
-    # Retirar transacoes da mesma empresa
+    ## Calcula a proxy NIPO a partir dos dados baixados do site da CVM
+    ##
+    ## INPUTS
+    ## Dados ... Matriz de dados criada atraves do coletaVariosAnosCVM
+    ##
+    
+    ## Criar Vetor de controle para desconsiderar a segunda transacao de uma
+    ## mesma empresa.
     EMPRESA  <- substr(Dados$empresa,1,12) # Gerar STRING de comparacao
     REPETIDO <- duplicated(EMPRESA)        # Vetor de empresas que repetiram
     
     ## Verificando Quantidade de IPO por ano 
     ano       <- substr(Dados$data[!REPETIDO],1,4)
     mes       <- substr(Dados$data[!REPETIDO],6,7)
-    nipo      <- data.frame(table(ano, mes))
-    rownames(nipo) <- as.Date(paste(nipo$ano, nipo$mes, "01", sep="-"))
-    nipo$ano  <- as.numeric(nipo$ano)
-    nipo$mes  <- as.numeric(nipo$mes)
-    nipo      <- nipo[order(nipo$ano,nipo$mes),]
-    nipo$ano <- NULL ; nipo$mes <- NULL
-    colnames(nipo) <- "CVM"
-    return(nipo)
+    Out      <- data.frame(table(ano, mes))
+    rownames(Out) <- as.Date(paste(Out$ano, Out$mes, "01", sep="-"))
+    Out$ano  <- as.numeric(Out$ano)
+    Out$mes  <- as.numeric(Out$mes)
+    Out      <- Out[order(Out$ano,Out$mes),]
+    Out$ano <- NULL ; Out$mes <- NULL
+    colnames(Out) <- "CVM"
+    
+    return(Out)
 }
 
 calcularS <- function(IPO, Subsequentes, Dividas) {
@@ -384,6 +407,55 @@ calcularS <- function(IPO, Subsequentes, Dividas) {
     Out$Y <- NULL ; Out$M <- NULL
     Out$Issues <- Out$A / ( Out$A + Out$DEB)
     return(Out)
+}
+
+calcularTURN <- function(Negociab, QN, QT, Periodo, lagDetrend, Liq) {
+    ## Calcula a proxy TURN
+    ##
+    ## INPUTS
+    ##
+    ## Negociab ... Matriz mensal de negociacao
+    ## QN ......... Matriz mensal c/ quantidade de negocios no periodo
+    ## QT ......... Matriz mensal c/ quantidade de titulos
+    ## Periodo .... String com o periodo desejado de filtragem
+    ## lagDetrend ... Numero de anos da MMA.
+    ## Liq .......... Numero minimo de liquidez
+    
+    require(TTR)
+    
+    # PERIOD.PRX <- paste(PERIOD.n,"-01/", PERIOD.N, "-06", sep="")
+    #                      JAN/n     a        JUN/N (Ex. 1999-01/2014-06)
+    
+    n <- as.numeric(substr(Periodo, 1, 4)) # Extraindo ano inicial
+    
+    # Periodo suficiente p/ calculo da MMA que destendenciara a serie
+    periodo_turn <- sub(n, (n - lagDetrend), Periodo)
+    
+    mNegociab <- importaBaseCSV(Negociab, periodo_turn)
+    mQN       <- importaBaseCSV(QN, periodo_turn, ignora=1)
+    mQT       <- importaBaseCSV(QT, periodo_turn, ignora=1)
+    
+    dNegociab <- mNegociab
+    dNegociab[!is.na(mNegociab)]  <- NA
+    dNegociab <- as.data.frame(apply(dNegociab, 2, function(x) as.logical(x) ))
+    rownames(dNegociab) <- rownames(mNegociab)
+    dNegociab[is.na(dNegociab) ]  <- F
+    dNegociab[mNegociab >= Liq]  <- T
+    
+    ## Total de QT e QN
+    Out <- mapply(function(qt,dn) { sum(qt[dn], na.rm=T) },
+                  as.data.frame(t(mQT)), as.data.frame(t(dNegociab)))
+    Out <- as.data.frame(Out) ; colnames(Out) <- "QT"
+    Out$QN <- mapply(function(qn,dn) { sum(qn[dn], na.rm=T) },
+                     as.data.frame(t(mQN)), as.data.frame(t(dNegociab)))
+    # Calcular TURNOVER
+    Out$TURN <- Out$QN / Out$QT
+    Out$dTURN <- (Out$TURN - SMA(Out$TURN, 12*lagDetrend)) # Turnover detrend
+    as.data.frame(as.xts(Out)[Periodo])
+}
+
+calcularPVOL <- function () {
+
 }
 
 chooseLAG <- function (m) {

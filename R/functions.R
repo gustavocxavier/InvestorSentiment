@@ -135,6 +135,30 @@ filterNo24months <- function(monthlyPrices, InitialSample) {
     as.data.frame(Out) # Retornar matriz lógica como um data.frame
 }
 
+computeMomentum <- function (monthlyReturns) {
+
+    ## Calcula o retorno da anomalia momento
+    ## 
+    ## Para calculo do Fator Momento: retorno de jul/(n-1):mai/(n  ) (11 meses)
+    
+    require(xts)
+    
+    ## Retira todo o junho
+    mMomentum <- monthlyReturns[-grep("-06-", rownames(monthlyReturns)),]
+    ## Salvar todos os endpoints em Maio
+    ep <- c(0,grep("-05-", rownames(mMomentum)))
+    ## Somatorio de Jul/n-1 a Mai/n
+    Out <- period.apply(mMomentum, ep, function(x) apply(x, 2, sum))
+    ## Criando uma linha NA referente ao primeiro ano p/ que a matriz
+    ## possa ser utilizada em outras funcoes
+    ano_1 <- as.numeric(substr(rownames(Out)[1],1,4))-1
+    Out <- rbind(first_may=rep(NA,ncol(Out)), Out)
+    rownames(Out)[1] <- paste(ano_1,"-05-01", sep="")
+    
+    ## Retorna a matriz anual com os retornos acumulados
+    return(Out)
+}
+
 #   1.2.2 Sentiment Functions - -----------------------------------------------
 
 coletaDEBnaCVM <- function (ano) {
@@ -606,6 +630,55 @@ portfolioSerie  <- function (Returns, Values, Assets) {
     # MV .... Valor de Mercado da carteira no período
     # nA .... Número de ativos da carteira no período
     # ______________________________________________________________
+}
+
+riskFreeRate <- function (ano_inicial, ano_final) {
+    
+    ## DESCRICAO: Baixa a Serie da SELIC e retorna o retorno logaritmo.
+    ##
+    
+    require("Quandl")
+    # require("xts")
+    # Rf <- importaBaseCSV("Input/mMacroeconomics.csv")[-(1:12),]
+    # tmp <- as.xts(Rf)
+    # Rf  <- as.data.frame( diff(log(tmp), lag=1) ) ; rm(tmp)
+    
+    n <- as.Date(paste(ano_inicial+1,"-07-01", sep=""))
+    N <- as.Date(paste(ano_final,"-06-30", sep=""))
+    # https://www.quandl.com/BCB/4390
+    SELIC <- Quandl("BCB/4390", type="ts", collapse="monthly", sort="asc",
+                    # transformation="rdiff",
+                    trim_start=n, trim_end=N)
+    
+    ## Retorna a taxa livre de risco logarítima
+    
+    log(1+SELIC/100)
+}
+
+computeLongShort <- function(Returns, MarketValue, Variable, nPortfolios,
+                             Rf) {
+    
+    ## DESCRICAO: Calcula a série de LongShort conforme a anomalia.
+    ##
+    ## ARGUMENTOS:
+    R  <- Returns     # Matriz de Retornos dos Ativos
+    MV <- MarketValue # Valor de Mercado p/ calculo do peso
+    V  <- Variable    # Variavel de Interesse
+    nP <- nPortfolios # Numero de portfolios (5 p/ quintis, 10 p/ decis)
+    
+    ShortAssets  <- portfolioSelectAssets(V, nP, nP)
+    ShortReturns <- portfolioSerie(R, MV, ShortAssets)
+    
+    LongAssets   <- portfolioSelectAssets(V, nP, nP/nP)
+    LongReturns  <- portfolioSerie(R, MV, LongAssets)
+    
+    Out <- data.frame(LONG=ts(LongReturns$rVW, start=c(PERIOD.n+1,7), frequency=12),
+                      SHORT=ts(ShortReturns$rVW, start=c(PERIOD.n+1,7), frequency=12),
+                      row.names=rownames(Long))
+    
+    print(colMeans(Out)*100)
+    
+    return(Out)
 }
 
 allQuintiles <- function (Criterion, Return, Value) {

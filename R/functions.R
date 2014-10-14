@@ -6,6 +6,10 @@
 
 #   1.2.1 Data Functions - ----------------------------------------------------
 
+asLogical <- function (DF) {
+    as.data.frame( lapply(DF, function (x) as.logical(x) ), row.names=rownames(DF))
+}
+
 importaBaseCSV <- function(arquivo, periodo, formato="%d/%m/%Y", ignora=0) {
     
     # Descricao: Funcao para importar base Economatica apos salvo como CSV
@@ -134,6 +138,186 @@ filterNo24months <- function(monthlyPrices, InitialSample) {
 
     as.data.frame(Out) # Retornar matriz lógica como um data.frame
 }
+
+filterPortfReturns <- function(Returns, ano_inicial, ano_final) {
+    ## Descrição: Retorna matriz de filtro com TRUE p/ ativos que tem retornos
+    ## validos durante aquele ano.
+    ##
+    ## Para calculo do Fator Momento: precos  de jun/(n-1):mai/(n  ) (12 meses)
+    ##                                retorno de jul/(n-1):mai/(n  ) (11 meses)
+    ##
+    
+    require(xts)
+    
+    ## Carregando Matriz de Retorno como XTS apenas nas datas de interesse
+    ## jul a jun a partir do segundo ano.
+    n <- ano_inicial
+    N <- ano_final
+    R <- as.xts(Returns)[paste(n,"-07/",N,"-06", sep="")]
+    
+    ## Todo ano vai 
+    ep  <- c(0,grep("-06-", index(R)))
+    
+    ## Aplica TRUE a todos os periodos em que a matriz de retorno nao tem NA
+    Out <- period.apply(R, ep, function(x) !apply(x, 2, anyNA))
+    years <- as.numeric(substr(index(Out),1,4)) - 1
+    
+    Out <- as.data.frame(Out, row.names=paste(years,"-06-01", sep=""))     
+    
+    # Adicionar o último ano
+    Out <- rbind(Out, last_year = rep(FALSE, ncol(Out) ))
+    rownames(Out)[nrow(Out)] <- paste(N,"-06-01", sep="")
+    
+    return(Out)
+}
+
+filterMonthMV <- function(MarketValues, ano_inicial, ano_final) {
+    ## Descrição: Retorna matriz de filtro com TRUE p/ ativos que tem retornos
+    ## validos durante aquele ano.
+    ##
+    ## Para calculo do Fator Momento: precos  de jun/(n-1):mai/(n  ) (12 meses)
+    ##                                retorno de jul/(n-1):mai/(n  ) (11 meses)
+    ##
+    
+    require(xts)
+    
+    ## Carregando Matriz de Retorno como XTS apenas nas datas de interesse
+    ## jul a jun a partir do segundo ano.
+    n <- ano_inicial
+    N <- ano_final
+    MV <- as.xts(MarketValues)[paste(n,"-07/",N,"-06", sep="")]
+    
+    ## Todo ano vai 
+    ep  <- c(0,grep("-06-", index(MV)))
+    
+    ## Aplica TRUE a todos os periodos em que a matriz de retorno nao tem NA
+    Out <- period.apply(MV, ep,
+                        function(x) apply(x, 2, function (a) !any(a<0|is.na(a)))
+                        )
+                        
+    years <- as.numeric(substr(index(Out),1,4)) - 1
+    
+    Out <- as.data.frame(Out, row.names=paste(years,"-06-01", sep=""))     
+    
+    # Adicionar o último ano
+    Out <- rbind(Out, last_year = rep(FALSE, ncol(Out) ))
+    rownames(Out)[nrow(Out)] <- paste(N,"-06-01", sep="")
+    
+    return(Out)
+}
+
+filterMOM <- function(Returns, InitialYear, FinalYear) {
+    
+    ## Descricao: TRUE p/ acoes comprecos disponiveis p/ calculo do momento
+    ## Calcula o retorno da anomalia momento
+    ## 
+    ## Para calculo do Fator Momento: retorno de jul/(n-1):mai/(n  ) (11 meses)
+    
+    require(xts)
+    
+    R <- Returns
+    n <- InitialYear # First year
+    N <- FinalYear   # Last year
+    
+    ## Retira todo o junho
+    row_names <- rownames(R)[grep("-06-", rownames(R) )]
+    R <- R[-grep("-06-", rownames(R)),]
+    ## Salvar todos os endpoints em Maio
+    ep <- c(0,grep("-05-", rownames(R)))
+    
+    ## Verifica se tem algum NA de Jul/n-1 a Mai/n
+    R <- as.xts(R)
+    R <- period.apply(R, ep, function(x) !apply(x, 2, anyNA))
+    Out <- as.data.frame(R)
+    ## Criando uma linha NA referente ao primeiro ano p/ que a matriz
+    ## possa ser utilizada em outras funcoes
+    # ano_1 <- as.numeric(substr(rownames(Out)[1],1,4))-1
+    Out <- rbind(first_year=rep(FALSE ,ncol(Out)), Out)
+    rownames(Out) <- row_names
+
+    ## Retorna a matriz de controle
+    return(Out)
+}
+
+filterNA <- function(Variable, FirstYear, LastYear, Month) {
+    
+    ## Descricao: TRUE p/ acoes comprecos disponiveis p/ calculo do momento
+    ## Calcula o retorno da anomalia momento
+    ## 
+    ## Para calculo do Fator Momento: retorno de jul/(n-1):mai/(n  ) (11 meses)
+    
+    require(xts)
+    require(lubridate)
+    
+    V <- Variable  # Variavel de interesse
+    n <- FirstYear # Primeiro ano da amostra
+    N <- LastYear  # Segundo ano da amostra
+    
+    # Filtro de Tempo
+    periodo <- paste(n,"/", N, sep="")
+    V <- as.data.frame(as.xts(V)[periodo])
+    
+    row_names <- rownames(V)[month(rownames(V))==6]
+    
+    ## Retira todo o junho
+    V <- V[months(as.Date(rownames(V)), abbreviate=T)==Month,]
+    nMonth <- month(rownames(V))[1]
+    
+    
+    Out <- as.data.frame( lapply(V, function(x) (!is.na(x)) ) )
+    
+    # Se o mes de referencia for apos junho adicionar uma linha
+    if ( nMonth > 6 ) { Out <- rbind(firstY=rep(FALSE, ncol(Out)), Out) }
+    
+    # Nomear linhas com os meses de junho
+    firstJun  <- as.Date(paste(n,"-06-01", sep=""))
+    lastJun   <- as.Date(paste(N,"-06-01", sep="")) 
+    rownames(Out) <- seq(firstJun, lastJun, by="year")
+    
+    ## Retorna a matriz de controle
+    return(Out)
+}
+
+filterGreaterThan <- function(Variable, Value, FirstYear, LastYear, Month) {
+    
+    ## Descricao: TRUE p/ acoes comprecos disponiveis p/ calculo do momento
+    ## Calcula o retorno da anomalia momento
+    ## 
+    ## Para calculo do Fator Momento: retorno de jul/(n-1):mai/(n  ) (11 meses)
+    
+    require(xts)
+    require(lubridate)
+    
+    V <- Variable  # Variavel de interesse
+    n <- FirstYear # Primeiro ano da amostra
+    N <- LastYear  # Segundo ano da amostra
+        
+    # Filtro de Tempo
+    periodo <- paste(n,"/", N, sep="")
+    V <- as.data.frame(as.xts(V)[periodo])
+    
+    ## Retira todo o junho
+    V <- V[months(as.Date(rownames(V)), abbreviate=T)==Month,]
+    nMonth <- month(rownames(V))[1]
+    
+    # Verdadeiro para os valores que atendem a condição
+    Out <- as.data.frame(lapply(V, function(x) (x >= Value)))
+    
+    # Falso para os valores NA
+    Out[is.na(V)] <- FALSE
+        
+    # Se o mes de referencia for apos junho adicionar uma linha
+    if ( nMonth > 6 ) { Out <- rbind(firstY=rep(FALSE, ncol(Out)), Out) }
+    
+    # Nomear linhas com os meses de junho
+    firstJun  <- as.Date(paste(n,"-06-01", sep=""))
+    lastJun   <- as.Date(paste(N,"-06-01", sep="")) 
+    rownames(Out) <- seq(firstJun, lastJun, by="year")
+    
+    ## Retorna a matriz de controle
+    return(Out)
+}
+
 
 computeMomentum <- function (monthlyReturns) {
 
@@ -472,6 +656,10 @@ calcularTURN <- function(Negociab, QN, QT, Periodo, lagDetrend, Liq) {
     Out <- as.data.frame(Out) ; colnames(Out) <- "QT"
     Out$QN <- mapply(function(qn,dn) { sum(qn[dn], na.rm=T) },
                      as.data.frame(t(mQN)), as.data.frame(t(dNegociab)))
+    
+    Out$QN <- Out$QN / 10000
+    Out$QT <- Out$QT / 10000
+    
     # Calcular TURNOVER
     Out$TURN <- Out$QN / Out$QT
     Out$dTURN <- (Out$TURN - SMA(Out$TURN, 12*lagDetrend)) # Turnover detrend
@@ -587,7 +775,7 @@ portfolioSerie  <- function (Returns, Values, Assets) {
     M <- as.numeric(substr(rownames(Returns),6,7)) # meses
     # M <- month(as.Date(rownames(Returns))) # c/ lubridate (+ elegante)
     n <- (seq(M))[M==7][2]                         # segundo JULHO
-    N <- sort(seq(M)[M==6], decreasing = T)[2]     # penultimo JUNHO
+    N <- sort(seq(M)[M==6], decreasing = T)[1]     # penultimo JUNHO
     
     rDate <- as.Date(rownames(Returns[n:(N-6),]))
     aDate <- as.Date(rownames(Assets))
@@ -620,6 +808,75 @@ portfolioSerie  <- function (Returns, Values, Assets) {
     
     as.data.frame(cbind(rEW, rVW, MV, nA))
         
+    # ______________________________________________________________
+    #
+    #  OUTPUT
+    # ______________________________________________________________
+    #
+    # rEW ... Série de retornos igualmente ponderado
+    # rVW ... Série de retornos ponderado pelo valor
+    # MV .... Valor de Mercado da carteira no período
+    # nA .... Número de ativos da carteira no período
+    # ______________________________________________________________
+}
+
+portfolioSerie2  <- function (Returns, Values, Assets) {
+    
+    # Função p/ calcular retorno dos portfolios feito p/ matrizes simetricas
+    #
+    # INPUT
+    # _________________________________________________________________
+    #
+    # Return .... Matriz de Retornos (Returns)
+    # Values .... Matriz com os Valores de Mercado (MarketValues)
+    # Assets .... Matriz de ativos pertecentes ao Portfolio (SelectedStocks)
+    # _________________________________________________________________
+    
+#     require(lubridate)
+    
+    # nrow(mReturns[-1,])/nrow(f_MKT[-nrow(f_MKT),])
+    
+    #M <- as.numeric(substr(rownames(Returns),6,7)) # meses
+    #     M <- month(as.Date(rownames(Returns))) # c/ lubridate (+ elegante)
+    #     n <- (seq(M))[M==7][1]                         # primeiro JULHO
+    #     N <- sort(seq(M)[M==6], decreasing = T)[1]     # ultimo   JUNHO
+
+    #rDate <- as.Date(rownames(Returns[n:(N-6),]))
+    #aDate <- as.Date(rownames(Assets))
+    ## Apenas os meses de interesse
+    # assetYears <- year(rDate) %between% (year(aDate)) 
+    #     period <- ydm(rownames(mReturns)) %between% ydm(rownames(f_MKT))
+    #     Returns <- Returns[period,] # Apenas meses de JULHO/ano1 a JUNHO/ano
+    #     Values <- Values # Apenas meses de JULHO/ano1 a JUNHO/ano
+    #     Assets <- Assets # Apenas os anos utilizados para o calculo
+    #     
+    # Deixando matrizes de ativos e de retornos do mesmo tamnho
+    
+    periodR <- paste(PERIOD.n,"-07/", PERIOD.N, "-06", sep="")
+    periodA <- paste(PERIOD.n, "-06/", PERIOD.N-1, "-06", sep="")
+    
+    Returns <- as.data.frame(as.xts(mReturns)[periodR])
+    Values  <- as.data.frame(as.xts(Values)[periodR])
+    Assets  <- as.data.frame(as.xts(f_MKT)[periodA])
+    
+#     Returns <- Returns[-1,]
+#     Values  <- Values[-1,]
+#     Assets  <- Assets[-nrow(Assets),]
+    RepeatAssets <- nrow(Returns)/nrow(Assets)
+    Assets <- Assets[rep(seq_len(nrow(Assets)), each=RepeatAssets),]
+    
+    # Transpondo matrizes e tansfromando em data.frame p/ usar as func. apply
+    A <- as.data.frame(t(Assets))
+    R <- as.data.frame(t(Returns))
+    V <- as.data.frame(t(Values))
+    
+    rEW <- mapply( function(x,y) mean(x[y]), R, A )
+    rVW <- mapply( function(x,y,z) { sum(x[z]*y[z]/sum(y[z])) }, R, V, A )
+    MV  <- mapply( function(x,y) { sum(x[y]) }, V, A )
+    nA  <- sapply( A, sum)
+    
+    as.data.frame(cbind(rEW, rVW, MV, nA))
+    
     # ______________________________________________________________
     #
     #  OUTPUT

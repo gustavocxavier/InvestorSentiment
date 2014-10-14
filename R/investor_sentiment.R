@@ -159,14 +159,25 @@ yVolumeDez <- mVolume[(months(as.Date(rownames(mVolume)), T)=="dez"),]
 
 ## 2.2 Filtrar Amostra / Filter Sample # =======================================
 
+f_PortfReturns  <- filterPortfReturns(mReturns, PERIOD.n, PERIOD.N)
+f_MVclass       <- filterMonthMV(mMVclass, PERIOD.n, PERIOD.N)
+f_MOM           <- filterMOM(mReturns, PERIOD.n, PERIOD.N)
+f_MVjun         <- filterNA(mMVfirm, PERIOD.n, PERIOD.N, "jun")
+f_MVdez         <- filterNA(mMVfirm, PERIOD.n, PERIOD.N, "dez")
+f_BookNA        <- filterNA(yBookFirm, PERIOD.n, PERIOD.N, "dez")
+f_BookPositive  <- filterGreaterThan(yBookFirm, 0, PERIOD.n, PERIOD.N, "dez")
+f_IN            <- filterGreaterThan(yNegociab, 0.01, PERIOD.n, PERIOD.N, "jun")
+
 ## Calcular Amostra Inicial
 ySample0 <- initialSample(mPrices) ; rownames(ySample0) <- rownames(yMVclassJun)
 
 ## Filtrar de Empresas Nao Financeiras
 ySample1 <- filterNoFinancial(ySample0, "Input/dbStocks.csv")
+f_NoFinancial <- ySample1
 
 ## Filtrar ações com cotações 24 meses consecutivos
 ySample2 <- filterNo24months(mPrices, ySample1)
+
 
 ## Filtro Valor de Mercado em 30/06/n e 31/12/n-1
 ySample3 <- ySample2 # Cria matriz de controle da amostra a partir da ultima
@@ -235,12 +246,18 @@ prx_S <- as.data.frame(as.xts(prx_S)[PERIOD.PRX])
 ## Calcular TURN
 prx_TURN <- calcularTURN ("Input/mNegociabilidade.csv",
                           "Input/mQN.csv",
-                          #"Input/mQT.csv",
-                          "Input/mQTOutStanding.csv",
-                          PERIOD.PRX, 1, 0.01)
+                          "Input/mQT.csv",
+                          #"Input/mQTOutStanding.csv",
+                          PERIOD.PRX, lagDetrend=1, Liq=0)
+#pQT <- prx_TURN
+pQO <- prx_TURN
+plot(as.xts(ts(pQO$QT, start=c(1999,1), frequency=12)), col="red")
+# plot(ts(prx_TURN$dTURN, start(1999,1), frequency=12))
+plot(as.xts(ts(prx_TURN$dTURN, start=c(1999,1), frequency=12)))
 
-## plot(ts(prx_TURN$dTURN, start(1999,1), frequency=12))
-
+plot(as.xts(ts(pQT$QT, start=c(1999,1), frequency=12)), col="blue")
+plot(as.xts(ts(pQO$QN, start=c(1999,1), frequency=12), col="green"))
+summary(pQO)
 ## Calcular PVOL # -------------------------------------------------------------
 
 ## Calcula a proxy PVOL - Premio Volatilidade
@@ -473,14 +490,28 @@ Rf <- riskFreeRate(PERIOD.n, PERIOD.N)
 ## 5.2 Carteira de Mercado # ===================================================
 
 ## Carteira de Mercado (Calculada)
-MKT <- ts(portfolioSerie(mReturns, mMVclass, ySample)$rVW,
-          start=c(PERIOD.n+1,07), frequency=12)
 
-# ## Carteira de Mercado (Ibovespa)
-# MKT  <- Quandl("BCB/7845", type="ts", collapse="monthly", sort="asc",
-#                 # transformation="rdiff",
-#                 trim_start=data_inicial-1, trim_end=data_final)
-# MKT <- diff(log(MKT),1)
+# Filtro p/ calculo da carteira de Mercado
+f_MKT <- data.frame(lapply(f_PortfReturns * f_MVclass * f_NoFinancial,
+                           as.logical), row.names=rownames(f_MKT))
+
+# Transformando a classe do valor de mercado de integer p/ numerico
+# por causa da memoria
+mMVclass <- data.frame(lapply(mMVclass, as.numeric ), row.names=rownames(mMVclass))
+
+tmp <- portfolioSerie2(mReturns, mMVclass, f_MKT)
+MKT <- ts(tmp$rVW, start=c(PERIOD.n,07), frequency=12) ; rm(tmp)
+
+## Carteira de Mercado (Ibovespa)
+IBV  <- Quandl("BCB/7845", type="ts", collapse="monthly", sort="asc",
+#               transformation="rdiff",
+               trim_start=as.Date(paste(PERIOD.n+1,"-06-01", sep="")),
+               trim_end=as.Date(paste(PERIOD.N,"-06-01", sep="")))
+IBV <- diff(log(IBV),1)
+
+#' Correlação entre a carteira calculada e o IBOVESPA
+#' Com empresas Financeiras = 0.96
+as.dist(cor(merge(MKT=as.zoo(MKT), IBOV=as.zoo(IBV), all=F)))
 
 MKT <- MKT-Rf
 
@@ -495,12 +526,14 @@ assetsF_BM_N <- portfolioSelectAssets(yBM,3,2) * 1 # Neutral
 assetsF_BM_L <- portfolioSelectAssets(yBM,3,3) * 1 # Growth (Low BM)
 
 ## Carteiras a partir da Interação
+
 assetsF_SH <- assetsF_Size_S[-1,] * assetsF_BM_H # Small Value (High BM)
 assetsF_SN <- assetsF_Size_S[-1,] * assetsF_BM_N # Small Neutral
 assetsF_SL <- assetsF_Size_S[-1,] * assetsF_BM_L # Small Growth (Low BM)
 assetsF_BH <- assetsF_Size_B[-1,] * assetsF_BM_H # Big Value (High BM)
 assetsF_BN <- assetsF_Size_B[-1,] * assetsF_BM_N # Big Neutral
 assetsF_BL <- assetsF_Size_B[-1,] * assetsF_BM_L # Big Growth (Low BM)
+assetsF_SH <- data.frame(lapply(assetsF_SH, as.logical), row.names=rownames(yBM))
 assetsF_SH <- apply(assetsF_SH, 2, function(x) as.logical(x) ) # Small Value (High BM)
 assetsF_SN <- apply(assetsF_SN, 2, function(x) as.logical(x) ) # Small Neutral
 assetsF_SL <- apply(assetsF_SL, 2, function(x) as.logical(x) ) # Small Growth (Low BM)

@@ -657,12 +657,17 @@ calcularTURN <- function(Negociab, QN, QT, Periodo, lagDetrend, Liq) {
     Out$QN <- mapply(function(qn,dn) { sum(qn[dn], na.rm=T) },
                      as.data.frame(t(mQN)), as.data.frame(t(dNegociab)))
     
-    Out$QN <- Out$QN / 10000
-    Out$QT <- Out$QT / 10000
+    # Variaveis em Log
+    Out$QN <- log(Out$QN) # Out$QN / 10000
+    Out$QT <- log(Out$QT) # Out$QT / 10000
     
     # Calcular TURNOVER
-    Out$TURN <- Out$QN / Out$QT
-    Out$dTURN <- (Out$TURN - SMA(Out$TURN, 12*lagDetrend)) # Turnover detrend
+    Out$TURN  <- Out$QN / Out$QT
+    Out$dTURN <- (Out$TURN - SMA(Out$TURN, 12*lagDetrend)) # Turnover detrended
+    
+    # Medida Alternativa, somente o QN
+    Out$dQN <- (Out$QN - SMA(Out$QN, 12*lagDetrend)) # log(QN) detrended
+    
     as.data.frame(as.xts(Out)[Periodo])
 }
 
@@ -801,9 +806,9 @@ portfolioSerie  <- function (Returns, Values, Assets) {
     R <- as.data.frame(t(Returns))
     V <- as.data.frame(t(Values))
     
-    rEW <- mapply( function(x,y) mean(x[y]), R, A )
+    rEW <- mapply( function(x,y) { mean(x[y]) }, R, A )
     rVW <- mapply( function(x,y,z) { sum(x[z]*y[z]/sum(y[z])) }, R, V, A )
-    MV  <- mapply( function(x,y) { sum(x[y]) }, V, A )
+    MV  <- mapply( function(x,y) { y <- as.logical(y) ; sum(x[y]) }, V, A )
     nA  <- sapply( A, sum)
     
     as.data.frame(cbind(rEW, rVW, MV, nA))
@@ -852,6 +857,8 @@ portfolioSerie2  <- function (Returns, Values, Assets) {
     #     
     # Deixando matrizes de ativos e de retornos do mesmo tamnho
     
+    require(xts)
+    
     periodR <- paste(PERIOD.n,"-07/", PERIOD.N, "-06", sep="")
     periodA <- paste(PERIOD.n, "-06/", PERIOD.N-1, "-06", sep="")
     
@@ -889,7 +896,7 @@ portfolioSerie2  <- function (Returns, Values, Assets) {
     # ______________________________________________________________
 }
 
-riskFreeRate <- function (ano_inicial, ano_final) {
+riskFreeRate <- function (ano_inicial, ano_final, difference=FALSE) {
     
     ## DESCRICAO: Baixa a Serie da SELIC e retorna o retorno logaritmo.
     ##
@@ -900,7 +907,12 @@ riskFreeRate <- function (ano_inicial, ano_final) {
     # tmp <- as.xts(Rf)
     # Rf  <- as.data.frame( diff(log(tmp), lag=1) ) ; rm(tmp)
     
-    n <- as.Date(paste(ano_inicial+1,"-07-01", sep=""))
+    if ( difference==T ) {
+        n <- as.Date(paste(ano_inicial+1,"-06-01", sep=""))
+    } else {
+        n <- as.Date(paste(ano_inicial+1,"-07-01", sep=""))
+    }
+    
     N <- as.Date(paste(ano_final,"-06-30", sep=""))
     # https://www.quandl.com/BCB/4390
     SELIC <- Quandl("BCB/4390", type="ts", collapse="monthly", sort="asc",
@@ -908,12 +920,13 @@ riskFreeRate <- function (ano_inicial, ano_final) {
                     trim_start=n, trim_end=N)
     
     ## Retorna a taxa livre de risco logarítima
-    
-    log(1+SELIC/100)
+    if ( difference==T ) { return(diff(log(SELIC))) }
+    else { return(log(1+SELIC/100)) }   
 }
 
 computeLongShort <- function(Returns, MarketValue, Variable, nPortfolios,
-                             Rf) {
+                             nFirstPortf, nLastPortf,
+                             riskFreeRate) {
     
     ## DESCRICAO: Calcula a série de LongShort conforme a anomalia.
     ##
@@ -922,20 +935,32 @@ computeLongShort <- function(Returns, MarketValue, Variable, nPortfolios,
     MV <- MarketValue # Valor de Mercado p/ calculo do peso
     V  <- Variable    # Variavel de Interesse
     nP <- nPortfolios # Numero de portfolios (5 p/ quintis, 10 p/ decis)
+    Rf <- riskFreeRate
+
+    assetsFirstPort <- portfolioSelectAssets(V, nP, nFirstPortf)
+    assetsLastPort  <- portfolioSelectAssets(V, nP, nLastPortf)
     
-    ShortAssets  <- portfolioSelectAssets(V, nP, nP)
-    ShortReturns <- portfolioSerie(R, MV, ShortAssets)
+    returnsFirstPort  <- portfolioSerie(R, MV, assetsFirstPort)$rVW
+    returnsLastPort   <- portfolioSerie(R, MV, assetsLastPort)$rVW
     
-    LongAssets   <- portfolioSelectAssets(V, nP, nP/nP)
-    LongReturns  <- portfolioSerie(R, MV, LongAssets)
+    if ( mean(returnsFirstPort) > mean(returnsLastPort) ) {
+        LONG   <- ts(returnsFirstPort, start=c(PERIOD.n+1,7), frequency=12) - Rf
+        SHORT  <- ts(returnsLastPort,  start=c(PERIOD.n+1,7), frequency=12) - Rf
+        aLONG  <- assetsFirstPort ; aSHORT  <- assetsLastPort
+    } else {
+        LONG   <- ts(returnsLastPort,  start=c(PERIOD.n+1,7), frequency=12) - Rf
+        SHORT  <- ts(returnsFirstPort, start=c(PERIOD.n+1,7), frequency=12) - Rf
+        aLONG  <- assetsLastPort ; aSHORT  <- assetsFirstPort
+    }
     
-    Out <- data.frame(LONG=ts(LongReturns$rVW, start=c(PERIOD.n+1,7), frequency=12),
-                      SHORT=ts(ShortReturns$rVW, start=c(PERIOD.n+1,7), frequency=12),
-                      row.names=rownames(Long))
+    Report <- data.frame(LONG = c(round(mean(V[aLONG ==T]),2), mean(LONG)*100 ),
+                         SHORT= c(round(mean(V[aSHORT==T]),2), mean(SHORT)*100 ),
+                         LS= c(NA, (mean(LONG) - mean(SHORT)) * 100 ),
+                         row.names = c("Variable", "Excess Return(%)") )
     
-    print(colMeans(Out)*100)
+    print(round(Report,2))
     
-    return(Out)
+    data.frame(LONG, SHORT, row.names=rownames(LONG))
 }
 
 allQuintiles <- function (Criterion, Return, Value) {
@@ -977,11 +1002,6 @@ allQuintiles <- function (Criterion, Return, Value) {
                row.names=c("VW r", "VW sd", "EW r", "EW sd"))
 }
 
-# ---- LongShortSeries --- --- ---
-# LongShortSeries    <- function (strategy, nPortfolios, RET, MV) {
-#      cat("rLong, mvLong, rShort, mvShort")
-# }
-
 cleanData <- function(yData, Sample, LAG=0) {
     if ( LAG == 0 ) {
         # Atribui NA em todos os valores yData em n qnd Sample em n for FALSE
@@ -991,10 +1011,8 @@ cleanData <- function(yData, Sample, LAG=0) {
     } else if ( LAG == 1 ) {
         # Atribui NA em todos os valores yData em n-1 qnd Sample em n for FALSE
         yData[(Sample[-1,]==F)] <- NA
-    } else if ( LAG != 0 & 1 ) { print("Valores validos para LAG sao 1 ou 0")}
+    } else if ( LAG != 0 & LAG != 1 ) { print("Valores validos para LAG sao 1 ou 0")}
     return(yData)
 }
 
-# constructPortfolio <- function (strategy, nPortfolios, iPortfolio) {}
-# rebalancedPortfolios <- function ()
-# SelectStockBaskets <- function (strategy, nPort, iPort) {}
+NW <- function (x) coeftest(x, vcov=NeweyWest(x, lag = 4, prewhite = FALSE))

@@ -37,6 +37,46 @@ importaBaseCSV <- function(arquivo, periodo, formato="%d/%m/%Y", ignora=0) {
     data.frame(as.matrix(as.xts(Out)[periodo]))
 }
 
+padronizaBase <- function(DB) {
+    # Função p/ padronizar a base (10/2014) coletada em epocas diferentes
+    # Embreve fazer padronizacao automatica
+    
+    # Mover CALA3B p/ depois de CAFE4
+    depoisde  <- which(colnames(DB)=="CAFE4")
+    move      <- which(colnames(DB)=="CALA3B")
+    DB        <- DB[,c(1:depoisde, move, (depoisde+1):(move-1), (move+1):ncol(DB))]
+    
+    # Mover CALA4B p/ depois de CALA3B
+    depoisde  <- which(colnames(DB)=="CALA3B")
+    move      <- which(colnames(DB)=="CALA4B")
+    DB <- DB[,c(1:depoisde, move, (depoisde+1):(move-1), (move+1):ncol(DB))]
+    
+    # Excluir celulas que nao estao na coleta inicial
+    DB$CSAN99 <- DB$RLOG3 <- DB$ABRE3 <- DB$ABRE11.ABRE3 <- DB$BPAN12 <- NULL
+    
+    # Criar coluna CACO5B e mover p/ depois de CACO3
+    DB$CACO5B <- rep(NA, nrow(DB))
+    depoisde  <- which(colnames(DB)=="CACO3B")
+    move      <- which(colnames(DB)=="CACO5B")
+    DB        <- DB[,c(1:depoisde, move, (depoisde+1):(move-1))]
+    
+    # Renomear BPAN3 e BPAN4 para BPNM3 e BPNM4
+    names(DB)[names(DB)=="BPAN3"] <- "BPNM3"
+    names(DB)[names(DB)=="BPAN4"] <- "BPNM4"
+    
+    # Mover BPAR3 p/ depois de BPAC5
+    depoisde  <- which(colnames(DB)=="BPAC5")
+    move      <- which(colnames(DB)=="BPAR3")
+    DB <- DB[,c(1:depoisde, move, (depoisde+1):(move-1), (move+1):ncol(DB))]
+    
+    # Mover BPIA3 p/ depois de BPAR3
+    depoisde  <- which(colnames(DB)=="BPAR3")
+    move      <- which(colnames(DB)=="BPIA3")
+    DB <- DB[,c(1:depoisde, move, (depoisde+1):(move-1), (move+1):ncol(DB))]
+    
+    return(DB)
+}
+
 initialSample <-  function (rawPrices) {
     
     ## Funçao que retorna matriz anual de amostra inicial a partir de dados
@@ -703,6 +743,13 @@ chooseLAG <- function (m) {
     # ______________________________________________________________
 }
 
+orgonalizeProxies <- function (Proxies, MacroVar) {
+    MacroVar <-  as.matrix(MacroVar)
+    Out <- sapply(Proxies, function(x) residuals(lm(x~MacroVar)))
+    rownames(Out) <- rownames(Proxies)
+    as.data.frame(Out)
+}
+
 #   1.2.3 Portfolio Functions - -----------------------------------------------
 
 `%between%` <- function(x,rng) {
@@ -953,14 +1000,131 @@ computeLongShort <- function(Returns, MarketValue, Variable, nPortfolios,
         aLONG  <- assetsLastPort ; aSHORT  <- assetsFirstPort
     }
     
-    Report <- data.frame(LONG = c(round(mean(V[aLONG ==T]),2), mean(LONG)*100 ),
-                         SHORT= c(round(mean(V[aSHORT==T]),2), mean(SHORT)*100 ),
-                         LS= c(NA, (mean(LONG) - mean(SHORT)) * 100 ),
-                         row.names = c("Variable", "Excess Return(%)") )
+    CAPM_Lg <- lm(LONG  ~ MKT)
+    CAPM_St <- lm(SHORT ~ MKT)
+    CAPM_LS <- lm(LONG  - SHORT ~ MKT)
     
-    print(round(Report,2))
+    FF3F_Lg   <- lm(LONG  ~ MKT + SMB + HML)
+    FF3F_St   <- lm(SHORT ~ MKT + SMB + HML)
+    FF3F_LS   <- lm(LONG  - SHORT ~ MKT + SMB + HML)
+    
+    # Imprimir media das variaveis
+    print(round(data.frame(LONG = mean(V[aLONG ==T]),
+                           SHORT= mean(V[aSHORT==T]),
+                           LS   = mean(V[aLONG==T | aSHORT==T]),
+                           row.names = "Variable                 "),
+                3)) ; cat("\n")
+    
+    # Imprimir Excess Retorno
+    print(round(data.frame(LONG = c(mean(LONG)*100,
+                                    t.test(LONG)$statistic,
+                                    t.test(LONG)$p.value), # p value
+                           SHORT= c(mean(SHORT)*100,
+                                    t.test(SHORT)$statistic,
+                                    t.test(SHORT)$p.value), # p value
+                           LS   = c((mean(LONG) - mean(SHORT))*100,
+                                    t.test(LONG-SHORT)$statistic,
+                                    t.test(LONG-SHORT)$p.value), # p value
+                           row.names = c("Excess Return (%)         ",
+                                         "t-stat                    ",
+                                         "p-value")),3)) ; cat("\n")
+    # CAPM
+    print(round(data.frame(LONG = c(summary(CAPM_Lg)$coefficients[1,1], # Alpha
+                                    summary(CAPM_Lg)$coefficients[1,3], # t value
+                                    summary(CAPM_Lg)$coefficients[1,4], # p value
+                                    NW(CAPM_Lg, 4)[1,3],                # t value
+                                    NW(CAPM_Lg, 4)[1,4]),               # p value
+                           SHORT= c(summary(CAPM_St)$coefficients[1,1], # Alpha
+                                    summary(CAPM_St)$coefficients[1,3], # t value
+                                    summary(CAPM_St)$coefficients[1,4], # p value
+                                    NW(CAPM_St, 4)[1,3],                # t value
+                                    NW(CAPM_St, 4)[1,4]),               # p value
+                           LS   = c(summary(CAPM_LS)$coefficients[1,1], # Alpha
+                                    summary(CAPM_LS)$coefficients[1,3], # t value
+                                    summary(CAPM_LS)$coefficients[1,4], # p value
+                                    NW(CAPM_LS, 4)[1,3],                # t value
+                                    NW(CAPM_LS, 4)[1,4]),               # p value
+                           row.names = c("CAPM Adjusted Returns (%)",
+                                         "t-stat                   ",
+                                         "p-value",
+                                         "t-stat (NW, lag=4)",
+                                         "p-value(NW, lag=4)")),3)) ; cat("\n")
+    # FF
+    print(round(data.frame(LONG = c(summary(FF3F_Lg)$coefficients[1,1],# Alpha
+                                    summary(FF3F_Lg)$coefficients[1,3],  # t value
+                                    summary(FF3F_Lg)$coefficients[1,4],  # p value
+                                    NW(FF3F_Lg, 4)[1,3],                 # t value
+                                    NW(FF3F_Lg, 4)[1,4]),
+                           SHORT= c(summary(FF3F_St)$coefficients[1,1],  # Alpha
+                                    summary(FF3F_St)$coefficients[1,3],  # t value
+                                    summary(FF3F_St)$coefficients[1,4],  # p value
+                                    NW(FF3F_St, 4)[1,3],                 # t value
+                                    NW(FF3F_St, 4)[1,4]),
+                           LS   = c(summary(FF3F_LS)$coefficients[1,1],  # Alpha
+                                    summary(FF3F_LS)$coefficients[1,3],  # t value
+                                    summary(FF3F_LS)$coefficients[1,4],  # p value
+                                    NW(FF3F_LS, 4)[1,3],                 # t value
+                                    NW(FF3F_LS, 4)[1,4]),
+                           row.names = c("FF Adjusted Returns (%)  ",
+                                         "t-stat                   ",
+                                         "p-value",
+                                         "t-stat (NW, lag=4)",
+                                         "p-value(NW, lag=4)")),3))
     
     data.frame(LONG, SHORT, row.names=rownames(LONG))
+}
+
+computeAvarageReturns <- function (LongShortPortfolio, SentimentIndex, Lag) {
+    tmp  <- ts(1:(length(LS$LONG)), start=c(PERIOD.n+1, 6), frequency=12)
+    Sent <- ts.intersect(SentimentIndex, tmp, dframe=TRUE)$SentimentIndex ; rm(tmp)
+    dH <- ts(as.numeric(Sent >= median(Sent)), start=start(Sent), frequency=frequency(Sent))
+    dL <- ts(as.numeric(Sent <= median(Sent)), start=start(Sent), frequency=frequency(Sent))
+    dH <- lag(dH, -Lag) # 1 quando o Sentimento no mes anterior esta acima da mediana
+    dL <- lag(dL, -Lag) # 1 quando o Sentimento no mes anterior esta abixo da mediana
+    
+    LS <- LongShortPortfolio
+    
+    LongShort <- ts(LS$LONG - LS$SHORT, start=start(LS$LONG),
+                    frequency=frequency(LS$LONG))
+    
+    df <- ts.intersect(dH, dL, LS$LONG, LS$SHORT, LongShort, dframe=TRUE)
+    
+    return(round(data.frame(LONG = c(mean(df$LS.LONG[(df$dH==1)])*100,
+                                    t.test(df$LS.LONG[(df$dH==1)], alternative="greater")$statistic,
+                                    t.test(df$LS.LONG[(df$dH==1)], alternative="greater")$p.value,
+                                    mean(df$LS.LONG[(df$dL==1)])*100,
+                                    t.test(df$LS.LONG[(df$dL==1)], alternative="greater")$statistic,
+                                    t.test(df$LS.LONG[(df$dL==1)], alternative="greater")$p.value,
+                                    mean(df$LS.LONG[(df$dH==1)] - df$LS.LONG[(df$dL==1)])*100,
+                                    t.test((df$LS.LONG[(df$dH==1)] - df$LS.LONG[(df$dL==1)]), alternative="less")$statistic,
+                                    t.test((df$LS.LONG[(df$dH==1)] - df$LS.LONG[(df$dL==1)]), alternative="less")$p.value),
+                           SHORT= c(mean(df$LS.SHORT[(df$dH==1)])*100,
+                                    t.test(df$LS.SHORT[(df$dH==1)], alternative="less")$statistic,
+                                    t.test(df$LS.SHORT[(df$dH==1)], alternative="less")$p.value,
+                                    mean(df$LS.SHORT[(df$dL==1)])*100,
+                                    t.test(df$LS.SHORT[(df$dL==1)], alternative="less")$statistic,
+                                    t.test(df$LS.SHORT[(df$dL==1)], alternative="less")$p.value,
+                                    mean((df$LS.SHORT[(df$dH==1)] - df$LS.SHORT[(df$dL==1)]))*100,
+                                    t.test((df$LS.SHORT[(df$dH==1)] - df$LS.SHORT[(df$dL==1)]), alternative="less")$statistic,
+                                    t.test((df$LS.SHORT[(df$dH==1)] - df$LS.SHORT[(df$dL==1)]), alternative="less")$p.value),
+                           LS   = c(mean(df$LongShort[(df$dH==1)])*100,
+                                    t.test(df$LongShort[(df$dH==1)], alternative="greater")$statistic,
+                                    t.test(df$LongShort[(df$dH==1)], alternative="greater")$p.value,
+                                    mean(df$LongShort[(df$dL==1)])*100,
+                                    t.test(df$LongShort[(df$dL==1)], alternative="greater")$statistic,
+                                    t.test(df$LongShort[(df$dL==1)], alternative="greater")$p.value,
+                                    mean((df$LongShort[(df$dH==1)] - df$LongShort[(df$dL==1)]))*100,
+                                    t.test((df$LongShort[(df$dH==1)] - df$LongShort[(df$dL==1)]), alternative="greater")$statistic,
+                                    t.test((df$LongShort[(df$dH==1)] - df$LongShort[(df$dL==1)]), alternative="greater")$p.value),
+                           row.names = c("Avarage Return High",
+                                         "t-stat  (High)",
+                                         "p-value (High)",
+                                         "Avarage Return Low",
+                                         "t-stat  (Low)",
+                                         "p-value (Low)",
+                                         "Return High - Low",
+                                         "t-stat  (H-L)",
+                                         "p-value (H-L)")),3)) ; cat("\n")
 }
 
 allQuintiles <- function (Criterion, Return, Value) {
@@ -1015,4 +1179,222 @@ cleanData <- function(yData, Sample, LAG=0) {
     return(yData)
 }
 
-NW <- function (x) coeftest(x, vcov=NeweyWest(x, lag = 4, prewhite = FALSE))
+NW <- function (x, Lag=4) {
+    require(lmtest)
+    require(sandwich)
+    coeftest(x, vcov=NeweyWest(x, lag = Lag, prewhite = FALSE))
+}
+
+reportAvarege <- function (Position, SentimentIndex, Lag=1) {
+    S <- SentimentIndex
+    if (Position == "Long" ) {
+        Out <- rbind(TAM   = t(computeAvarageReturns(ls_TAM, S, Lag))[1,1:9],
+                     LIQ   = t(computeAvarageReturns(ls_LIQ, S, Lag))[1,1:9],
+                     VOL   = t(computeAvarageReturns(ls_VOL, S, Lag))[1,1:9],
+                     BM    = t(computeAvarageReturns(ls_BM, S, Lag))[1,1:9],
+                     MOM   = t(computeAvarageReturns(ls_MOM, S, Lag))[1,1:9],
+                     EBTDA = t(computeAvarageReturns(ls_EBTDA, S, Lag))[1,1:9],
+                     ENDIV = t(computeAvarageReturns(ls_ENDIV, S, Lag))[1,1:9],
+                     LP    = t(computeAvarageReturns(ls_LP, S, Lag))[1,1:9],
+                     ROA   = t(computeAvarageReturns(ls_ROA, S, Lag))[1,1:9],
+                     TODAS = t(computeAvarageReturns(LS, S, Lag))[1,1:9])
+        cat(paste("\nQuantidade H-L < 0:",
+                  sum(Out[1:9,7] <= 0),"(Apesar de todas positivas (Low > High), em SYY nenhuma foi siginificante)\n"))
+        cat(paste("Spread retorno H-L na combinação (SYY 39, n siginif.):", Out[10,7] ,
+                  "( p-value", Out[10,9],")\n\n"))        
+} else if ( Position == "Short" ) {
+        Out <- rbind(TAM   = t(computeAvarageReturns(ls_TAM, S, Lag))[2,1:9],
+                     LIQ   = t(computeAvarageReturns(ls_LIQ, S, Lag))[2,1:9],
+                     VOL   = t(computeAvarageReturns(ls_VOL, S, Lag))[2,1:9],
+                     BM    = t(computeAvarageReturns(ls_BM, S, Lag))[2,1:9],
+                     MOM   = t(computeAvarageReturns(ls_MOM, S, Lag))[2,1:9],
+                     EBTDA = t(computeAvarageReturns(ls_EBTDA, S, Lag))[2,1:9],
+                     ENDIV = t(computeAvarageReturns(ls_ENDIV, S, Lag))[2,1:9],
+                     LP    = t(computeAvarageReturns(ls_LP, S, Lag))[2,1:9],
+                     ROA   = t(computeAvarageReturns(ls_ROA, S, Lag))[2,1:9],
+                     TODAS = t(computeAvarageReturns(LS, S, Lag))[2,1:9])
+        cat(paste("\nQuantidade H-L < 0 (SYY 11 H<L):", sum(Out[1:9,7] <= 0),"(SYY p-value 10 de 11)\n"))
+        cat(paste("Spread retorno H-L na combinação (SYY -1.32):", Out[10,7] ,
+                  "( p-value", Out[10,9],")\n\n"))
+    } else if ( Position == "LongShort") {
+        Out <- rbind(TAM   = t(computeAvarageReturns(ls_TAM, S, Lag))[3,1:9],
+                     LIQ   = t(computeAvarageReturns(ls_LIQ, S, Lag))[3,1:9],
+                     VOL   = t(computeAvarageReturns(ls_VOL, S, Lag))[3,1:9],
+                     BM    = t(computeAvarageReturns(ls_BM, S, Lag))[3,1:9],
+                     MOM   = t(computeAvarageReturns(ls_MOM, S, Lag))[3,1:9],
+                     EBTDA = t(computeAvarageReturns(ls_EBTDA, S, Lag))[3,1:9],
+                     ENDIV = t(computeAvarageReturns(ls_ENDIV, S, Lag))[3,1:9],
+                     LP    = t(computeAvarageReturns(ls_LP, S, Lag))[3,1:9],
+                     ROA   = t(computeAvarageReturns(ls_ROA, S, Lag))[3,1:9],
+                     TODAS = t(computeAvarageReturns(LS, S, Lag))[3,1:9])
+        cat(paste("\nQuantidade H-L > 0 (SYY 11):", sum(Out[1:9,7] >= 0),"(SYY p-value 8 de 11)\n"))
+        cat(paste("Spread retorno H-L na combinação (SYY +0.93):", Out[10,7] ,
+                  "( p-value", Out[10,9],")\n\n"))
+    } else { cat("Escolha as opções Long, Short ou LongShort") }
+    if ( exists("Out") ) {
+        colnames(Out) <- c("         HIGH", "t stat", "p value",
+                           "          LOW", "t stat", "p value",
+                           "     HIGH-LOW", "t stat", "p value")
+        print(rbind(Qtd.Sign.=c("      0.1"=sum(Out[1:9,3] <= 0.1),
+                                "  0.05"=sum(Out[1:9,3] <= 0.05),
+                                "   0.01"=sum(Out[1:9,3] <= 0.01),
+                                "          0.1"=sum(Out[1:9,6] <= 0.1),
+                                "  0.05"=sum(Out[1:9,6] <= 0.05),
+                                "   0.01"=sum(Out[1:9,6] <= 0.01),
+                                "      0.1 "=sum(Out[1:9,9] <= 0.1),
+                                "  0.05"=sum(Out[1:9,9] <= 0.05),
+                                "   0.01"=sum(Out[1:9,9] <= 0.01))), quote=FALSE)
+        cat("\n")
+        return(Out)
+    }
+}
+
+reportRegSent <- function(SentimentIndex, Lag) {
+    tmp  <- ts(1:(length(LS$LONG)+1), start=c(PERIOD.n+1, 6), frequency=12)
+    S    <- ts.intersect(SentimentIndex, tmp, dframe=TRUE)$SentimentIndex ; rm(tmp)
+    
+    Out <- rbind(TAM   = summary(dynlm(ls_TAM$LONG   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+              LIQ   = summary(dynlm(ls_LIQ$LONG   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+              VOL   = summary(dynlm(ls_VOL$LONG   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+              BM    = summary(dynlm(ls_BM$LONG    ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+              MOM   = summary(dynlm(ls_MOM$LONG   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+              EBTDA = summary(dynlm(ls_EBTDA$LONG ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+              ENDIV = summary(dynlm(ls_ENDIV$LONG ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+              LP    = summary(dynlm(ls_LP$LONG    ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+              ROA   = summary(dynlm(ls_ROA$LONG   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+              TODAS = summary(dynlm(LS$LONG       ~ L(S, Lag)))$coefficients[2,c(1,3,4)])
+    Out <- cbind(Out, rbind(TAM   = summary(dynlm(ls_TAM$SHORT   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            LIQ   = summary(dynlm(ls_LIQ$SHORT   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            VOL   = summary(dynlm(ls_VOL$SHORT   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            BM    = summary(dynlm(ls_BM$SHORT    ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            MOM   = summary(dynlm(ls_MOM$SHORT   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            EBTA  = summary(dynlm(ls_EBTDA$SHORT ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            ENDIV = summary(dynlm(ls_ENDIV$SHORT ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            LP    = summary(dynlm(ls_LP$SHORT    ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            ROA   = summary(dynlm(ls_ROA$SHORT   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            TODAS = summary(dynlm(LS$SHORT       ~ L(S, Lag)))$coefficients[2,c(1,3,4)]))
+    Out <- cbind(Out, rbind(TAM   = summary(dynlm(ls_TAM$LONG   - ls_TAM$SHORT   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            LIQ   = summary(dynlm(ls_LIQ$LONG   - ls_LIQ$SHORT   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            VOL   = summary(dynlm(ls_VOL$LONG   - ls_VOL$SHORT   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            BM    = summary(dynlm(ls_BM$LONG    - ls_BM$SHORT    ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            MOM   = summary(dynlm(ls_MOM$LONG   - ls_MOM$SHORT   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            EBTA  = summary(dynlm(ls_EBTDA$LONG - ls_EBTDA$SHORT ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            ENDIV = summary(dynlm(ls_ENDIV$LONG - ls_ENDIV$SHORT ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            LP    = summary(dynlm(ls_LP$LONG    - ls_LP$SHORT    ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            ROA   = summary(dynlm(ls_ROA$LONG   - ls_ROA$SHORT   ~ L(S, Lag)))$coefficients[2,c(1,3,4)],
+                            TODAS = summary(dynlm(LS$LONG       - LS$SHORT       ~ L(S, Lag)))$coefficients[2,c(1,3,4)]))
+    colnames(Out) <- c("        LONG", "t stat", "p value",
+                       "       SHORT", "t stat", "p value",
+                       "   LONGSHORT", "t stat", "p value")
+    print(rbind(Qtd.Sign.=c("      0.1"=sum(Out[1:9,3] <= 0.1),
+                            "  0.05"=sum(Out[1:9,3] <= 0.05),
+                            "   0.01"=sum(Out[1:9,3] <= 0.01),
+                            "          0.1"=sum(Out[1:9,6] <= 0.1),
+                            "  0.05"=sum(Out[1:9,6] <= 0.05),
+                            "   0.01"=sum(Out[1:9,6] <= 0.01),
+                            "      0.1 "=sum(Out[1:9,9] <= 0.1),
+                            "  0.05"=sum(Out[1:9,9] <= 0.05),
+                            "   0.01"=sum(Out[1:9,9] <= 0.01))), quote=FALSE)
+    cat("\n")
+    return(as.data.frame(round(Out,3)))
+}
+
+reportRegCAPM <- function(SentimentIndex, Lag) {
+    tmp  <- ts(1:(length(LS$LONG)+1), start=c(PERIOD.n+1, 6), frequency=12)
+    S    <- ts.intersect(SentimentIndex, tmp, dframe=TRUE)$SentimentIndex ; rm(tmp)
+    
+    Out <- rbind(TAM   = summary(dynlm(ls_TAM$LONG   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                 LIQ   = summary(dynlm(ls_LIQ$LONG   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                 VOL   = summary(dynlm(ls_VOL$LONG   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                 BM    = summary(dynlm(ls_BM$LONG    ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                 MOM   = summary(dynlm(ls_MOM$LONG   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                 EBTDA = summary(dynlm(ls_EBTDA$LONG ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                 ENDIV = summary(dynlm(ls_ENDIV$LONG ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                 LP    = summary(dynlm(ls_LP$LONG    ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                 ROA   = summary(dynlm(ls_ROA$LONG   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                 TODAS = summary(dynlm(LS$LONG       ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)])
+    Out <- cbind(Out, rbind(TAM   = summary(dynlm(ls_TAM$SHORT   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            LIQ   = summary(dynlm(ls_LIQ$SHORT   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            VOL   = summary(dynlm(ls_VOL$SHORT   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            BM    = summary(dynlm(ls_BM$SHORT    ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            MOM   = summary(dynlm(ls_MOM$SHORT   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            EBTA  = summary(dynlm(ls_EBTDA$SHORT ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            ENDIV = summary(dynlm(ls_ENDIV$SHORT ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            LP    = summary(dynlm(ls_LP$SHORT    ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            ROA   = summary(dynlm(ls_ROA$SHORT   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            TODAS = summary(dynlm(LS$SHORT       ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)]))
+    Out <- cbind(Out, rbind(TAM   = summary(dynlm(ls_TAM$LONG   - ls_TAM$SHORT   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            LIQ   = summary(dynlm(ls_LIQ$LONG   - ls_LIQ$SHORT   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            VOL   = summary(dynlm(ls_VOL$LONG   - ls_VOL$SHORT   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            BM    = summary(dynlm(ls_BM$LONG    - ls_BM$SHORT    ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            MOM   = summary(dynlm(ls_MOM$LONG   - ls_MOM$SHORT   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            EBTA  = summary(dynlm(ls_EBTDA$LONG - ls_EBTDA$SHORT ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            ENDIV = summary(dynlm(ls_ENDIV$LONG - ls_ENDIV$SHORT ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            LP    = summary(dynlm(ls_LP$LONG    - ls_LP$SHORT    ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            ROA   = summary(dynlm(ls_ROA$LONG   - ls_ROA$SHORT   ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)],
+                            TODAS = summary(dynlm(LS$LONG       - LS$SHORT       ~ L(S, Lag) + MKT ))$coefficients[2,c(1,3,4)]))
+    colnames(Out) <- c("        LONG", "t stat", "p value",
+                       "       SHORT", "t stat", "p value",
+                       "   LONGSHORT", "t stat", "p value")
+    print(rbind(Qtd.Sign.=c("      0.1"=sum(Out[1:9,3] <= 0.1),
+                            "  0.05"=sum(Out[1:9,3] <= 0.05),
+                            "   0.01"=sum(Out[1:9,3] <= 0.01),
+                            "          0.1"=sum(Out[1:9,6] <= 0.1),
+                            "  0.05"=sum(Out[1:9,6] <= 0.05),
+                            "   0.01"=sum(Out[1:9,6] <= 0.01),
+                            "      0.1 "=sum(Out[1:9,9] <= 0.1),
+                            "  0.05"=sum(Out[1:9,9] <= 0.05),
+                            "   0.01"=sum(Out[1:9,9] <= 0.01))), quote=FALSE)
+    cat("\n")
+    return(as.data.frame(round(Out,3)))
+}
+
+reportReg3F <- function(SentimentIndex, Lag) {
+    tmp  <- ts(1:(length(LS$LONG)+1), start=c(PERIOD.n+1, 6), frequency=12)
+    S    <- ts.intersect(SentimentIndex, tmp, dframe=TRUE)$SentimentIndex ; rm(tmp)
+    
+    Out <- rbind(TAM   = summary(dynlm(ls_TAM$LONG   ~ L(S, Lag) + MKT  + SMB + HML ))$coefficients[2,c(1,3,4)],
+                 LIQ   = summary(dynlm(ls_LIQ$LONG   ~ L(S, Lag) + MKT  + SMB + HML ))$coefficients[2,c(1,3,4)],
+                 VOL   = summary(dynlm(ls_VOL$LONG   ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                 BM    = summary(dynlm(ls_BM$LONG    ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                 MOM   = summary(dynlm(ls_MOM$LONG   ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                 EBTDA = summary(dynlm(ls_EBTDA$LONG ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                 ENDIV = summary(dynlm(ls_ENDIV$LONG ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                 LP    = summary(dynlm(ls_LP$LONG    ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                 ROA   = summary(dynlm(ls_ROA$LONG   ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                 TODAS = summary(dynlm(LS$LONG       ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)])
+    Out <- cbind(Out, rbind(TAM   = summary(dynlm(ls_TAM$SHORT   ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            LIQ   = summary(dynlm(ls_LIQ$SHORT   ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            VOL   = summary(dynlm(ls_VOL$SHORT   ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            BM    = summary(dynlm(ls_BM$SHORT    ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            MOM   = summary(dynlm(ls_MOM$SHORT   ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            EBTA  = summary(dynlm(ls_EBTDA$SHORT ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            ENDIV = summary(dynlm(ls_ENDIV$SHORT ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            LP    = summary(dynlm(ls_LP$SHORT    ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            ROA   = summary(dynlm(ls_ROA$SHORT   ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            TODAS = summary(dynlm(LS$SHORT       ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)]))
+    Out <- cbind(Out, rbind(TAM   = summary(dynlm(ls_TAM$LONG   - ls_TAM$SHORT   ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            LIQ   = summary(dynlm(ls_LIQ$LONG   - ls_LIQ$SHORT   ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            VOL   = summary(dynlm(ls_VOL$LONG   - ls_VOL$SHORT   ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            BM    = summary(dynlm(ls_BM$LONG    - ls_BM$SHORT    ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            MOM   = summary(dynlm(ls_MOM$LONG   - ls_MOM$SHORT   ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            EBTA  = summary(dynlm(ls_EBTDA$LONG - ls_EBTDA$SHORT ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            ENDIV = summary(dynlm(ls_ENDIV$LONG - ls_ENDIV$SHORT ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            LP    = summary(dynlm(ls_LP$LONG    - ls_LP$SHORT    ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            ROA   = summary(dynlm(ls_ROA$LONG   - ls_ROA$SHORT   ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)],
+                            TODAS = summary(dynlm(LS$LONG       - LS$SHORT       ~ L(S, Lag) + MKT + SMB + HML ))$coefficients[2,c(1,3,4)]))
+    colnames(Out) <- c("        LONG", "t stat", "p value",
+                       "       SHORT", "t stat", "p value",
+                       "   LONGSHORT", "t stat", "p value")
+    print(rbind(Qtd.Sign.=c("      0.1"=sum(Out[1:9,3] <= 0.1),
+                            "  0.05"=sum(Out[1:9,3] <= 0.05),
+                            "   0.01"=sum(Out[1:9,3] <= 0.01),
+                            "          0.1"=sum(Out[1:9,6] <= 0.1),
+                            "  0.05"=sum(Out[1:9,6] <= 0.05),
+                            "   0.01"=sum(Out[1:9,6] <= 0.01),
+                            "      0.1 "=sum(Out[1:9,9] <= 0.1),
+                            "  0.05"=sum(Out[1:9,9] <= 0.05),
+                            "   0.01"=sum(Out[1:9,9] <= 0.01))), quote=FALSE)
+    cat("\n")
+    return(as.data.frame(round(Out,3)))
+}

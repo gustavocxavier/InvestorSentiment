@@ -50,6 +50,7 @@ PERIOD.DEZ <- paste(PERIOD.n,"-12/", PERIOD.N-2, "-12", sep="")
 
 ## Instalar pacotes / Install packages -----------------------------------------
 ip <- installed.packages()
+pkg <- "zoo"       ; if ( !(pkg %in% ip) ) { install.packages(pkg) }
 pkg <- "dynlm"     ; if ( !(pkg %in% ip) ) { install.packages(pkg) }
 pkg <- "lubridate" ; if ( !(pkg %in% ip) ) { install.packages(pkg) }
 pkg <- "Quandl"    ; if ( !(pkg %in% ip) ) { install.packages(pkg) }
@@ -62,6 +63,7 @@ pkg <- "sandwich"  ; if ( !(pkg %in% ip) ) { install.packages(pkg) }
 rm(list=c("ip","pkg"))
 
 ## Carregar pacotes / Load packages --------------------------------------------
+library("zoo")
 library("dynlm")
 library("lubridate")
 library("Quandl") ; Quandl.auth("WP2rt8HsRo3kjWsRkLY5")
@@ -224,16 +226,14 @@ rownames (yMomentum) <- rownames(yVolumeJun)
 
 ## 3.1 Read/Compute Proxies # ==================================================
 
-## Periodo p/ Proxies Sentimento
+## Periodo p/ Proxies Sentimento. Ex.: JAN/n a JUN/N (Ex. 1999-01/2014-06)
 PERIOD.PRX <- paste(PERIOD.n,"-01/", PERIOD.N, "-06", sep="")
-#                      JAN/n     a        JUN/N (Ex. 1999-01/2014-06)
 
 ## Calcular NIPO
 prx_NIPO <- calcularNIPO(dbCVM_IPO)
 
 ## Calcular S
 prx_S <- calcularS(dbCVM_IPO, dbCVM_SUB, dbCVM_DEB)
-
 library(TTR)
 # OPÇÃO 1 Tratar os dados faltantes
 # Substituindo valores zerados pela medias dos ultimos meses
@@ -241,133 +241,64 @@ prx_S$A[3]              <- SMA(prx_S$A,   2)[prx_S$A==0][1]
 prx_S$A[prx_S$A==0]     <- EMA(prx_S$A,   6)[prx_S$A==0]
 prx_S$DEB[prx_S$DEB==0] <- EMA(prx_S$DEB, 6)[prx_S$DEB==0]
 # http://www.fmlabs.com/reference/default.htm?url=ExpMA.htm
-
 prx_S$Issues <- prx_S$A / ( prx_S$A + prx_S$DEB ) # Recalculando S
-S <- prx_S
-S$A <- S$DEB <- NULL
-
-# prx_S$Issues <- c(prx_S$Issues[1:5],SMA(prx_S$Issues,6)[-(1:5)])
-
+# Aplicando uma media movel
+prx_S$Issues <- c(prx_S$Issues[1:5],SMA(prx_S$Issues,6)[-(1:5)])
 prx_S <- as.data.frame(as.xts(prx_S)[PERIOD.PRX])
 
 ## Calcular TURN
-prx_TURN <- calcularTURN ("Input/mNegociabilidade.csv",
-                          "Input/mQN.csv",
-                          # "Input/mQT.csv",
-                          "Input/mQTOutStanding.csv",
-                          PERIOD.PRX, lagDetrend=1, Liq=0.01)
+prx_TURNq <- calcularTURNqtd ("Input/mNegociabilidade.csv",
+                             "Input/mQN.csv",
+                              #"Input/mQT.csv",
+                              "Input/mQTOutStanding.csv",
+                              PERIOD.PRX, lagDetrend=4, Liq=0.01)
+# plot(as.xts( ts(prx_TURNq$dTURN, start=c(PERIOD.n,1), frequency=12) ))
 
-## Calcular PVOL # -------------------------------------------------------------
+prx_TURNv <- calcularTURN ("Input/mNegociabilidade.csv",
+                          "Input/mVolFinanNoMes.csv",
+                          "Input/mMarketValue.csv",
+                          PERIOD.PRX, lagDetrend=4, Liq=0.01)
+# plot(as.xts( ts(prx_TURNv$TURN, start=c(PERIOD.n,1), frequency=12) ))
+# plot(as.xts( ts(prx_TURNv$dTURN, start=c(PERIOD.n,1), frequency=12) ))
 
-## Calcula a proxy PVOL - Premio Volatilidade
-## 
-## INPUTS
-##
-## require(lubridate)
-MV  <- importaBaseCSV("Input/mMarketValueFirm.csv", PERIOD.PRX, ignora=1)[,1:1108]
-tmp <- quarter(rownames(MV))!=c(quarter(rownames(MV))[-1],TRUE)
-qMVfirm <- MV[tmp,] ; rm(MV)
 
-qBookFirm <- importaBaseCSV("Input/qBookFirm.csv", PERIOD.PRX, ignora=1)[,1:1108]
-qBookFirm[qBookFirm<=0]     <- NA
-qMVfirm[qBookFirm<=0]       <- NA
-qBookFirm[is.na(qBookFirm)] <- NA
-qMVfirm[is.na(qBookFirm)]   <- NA
-qBookFirm[is.na(qMVfirm)]   <- NA
-qMVfirm[is.na(qMVfirm)]     <- NA
+# plot(as.xts( ts(prx_NIPO$CVM, start=c(PERIOD.n,1), frequency=12)))
+# plot(as.xts( ts(prx_S$Issues, start=c(PERIOD.n,1), frequency=12) ))
 
-qMB <- as.data.frame(mapply( function(mkt,book) { mkt/book },
-                             as.data.frame((qMVfirm)),
-                             as.data.frame((qBookFirm))) )
-rownames(qMB) <- rownames(qMVfirm)
+# plot(as.xts( ts(prx_TURNq$dTURN, start=c(PERIOD.n,1), frequency=12) ))
+# plot(as.xts( ts(prx_TURNq$dQN, start=c(PERIOD.n,1), frequency=12) ))
 
-DP12m    <- importaBaseCSV("Input/mDP12m.csv", PERIOD.PRX, ignora = 1)[,1:1108]
-tmp <- quarter(rownames(DP12m))!=c(quarter(rownames(DP12m))[-1],TRUE)
-qDP12m <- DP12m[tmp,] ; rm(DP12m)
 
-# Valor de Mercado da Classe p/ ponderacao
-MV  <- importaBaseCSV("Input/mMarketValue.csv", PERIOD.PRX, ignora=1)
-tmp <- quarter(rownames(MV))!=c(quarter(rownames(MV))[-1],TRUE)
-qMVclass <- MV[tmp,1:108] ; rm(MV)
-
-# Media Ponderada pelo VM do MB das acoes de alta volatilidade (High Volatility)
-A  <- as.data.frame(t(portfolioSelectAssets(qDP12m, 3, 3)))
-MB <- as.data.frame(t(qMB))
-V  <- as.data.frame(t(qMVclass))
-MBhv <- mapply(function(mb,v,a) { sum(mb[a]*v[a]/sum(v[a], na.rm=T), na.rm=T) }
-               , MB, V, A )
-
-# Media Ponderada pelo VM do MB das acoes de baixa volatilidade (Low Volatility)
-A  <- as.data.frame(t(portfolioSelectAssets(qDP12m, 3, 1)))
-MBlv <- mapply(function(mb,v,a) { sum(mb[a]*v[a]/sum(v[a], na.rm=T), na.rm=T) }
-               , MB, V, A )
-rm(list=c("A","MB","V"))
-
-# Calcular PVOL
-prx_PVOL <- as.data.frame(MBhv)
-prx_PVOL$MBlv <- MBlv
-prx_PVOL$PVOL <- log(MBhv/MBlv)    
-prx_PVOL <- prx_PVOL[sort(rep(1:nrow(prx_PVOL),3)),]
-rownames(prx_PVOL) <- rownames(prx_TURN)
-rm(list=c("MBlv","MBhv"))
+## Calcular PVOL
+prx_PVOL <- calcularPVOL()
 
 ## Organizar / Importar Proxies # ----------------------------------------------
 
-# # Codigo Antigo: Importar base de proxies calculadas pelo Excel
-# mProxies   <- read.table ("Input/mProxies.csv",          # Read data
-#                           header = T, sep=";", dec=",",
-#                           row.names=1)
-# mProxies <- mProxies[!is.na(mProxies$NIPO_lagged),]
-
-# mProxies <- ts.intersect(
-#     NIPO = ts(prx_NIPO$CVM ,  start=c(PERIOD.n,1), frequency=(12)),
-#     S    = ts(prx_S$Issues ,  start=c(PERIOD.n,1), frequency=(12)),
-#     TURN = ts(prx_TURN$dTURN, start=c(PERIOD.n,1), frequency=(12)),
-#     QN   = ts(prx_TURN$dQN,   start=c(PERIOD.n,1), frequency=(12)),
-#     PVOL = ts(prx_PVOL$PVOL,  start=c(PERIOD.n,1), frequency=(12)), dframe = T)
-
-mProxies <- merge(prx_NIPO, prx_S, by = "row.names", all.y=T)
-mProxies$CVM[is.na(mProxies$CVM)] <- 0
-mProxies$A <- NULL ; mProxies$DEB <- NULL
-rownames(mProxies) <- mProxies$Row.names ; mProxies$Row.names <- NULL
-colnames(mProxies) <- c("NIPO", "S")
-
-mProxies <- merge(mProxies, prx_TURN, by = "row.names", all.y=T)
-rownames(mProxies) <- mProxies$Row.names ; mProxies$Row.names <- NULL
-# mProxies$QT <- mProxies$QN <- mProxies$TURN <- NULL
-# colnames(mProxies) <- c("NIPO", "S", "TURN", "QN")
-mProxies$QT <- mProxies$QN <- mProxies$TURN <- mProxies$dQN <- NULL
-colnames(mProxies) <- c("NIPO", "S", "TURN")
-# mProxies$QT <- mProxies$QN <- mProxies$TURN <- mProxies$dTURN <- NULL
-# colnames(mProxies) <- c("NIPO", "S", "QN")
-
-mProxies <- merge(mProxies, prx_PVOL, by = "row.names", all.y=T)
-mProxies$MBhv <- mProxies$MBlv <- NULL
-rownames(mProxies) <- mProxies$Row.names ; mProxies$Row.names <- NULL
-
-# mProxies      <- as.data.frame(prx_S$Issues) ; colnames(mProxies) <- "S"
-# mProxies$NIPO <- c(prx_NIPO$CVM,rep(0,6))
-# mProxies$TURN <- prx_TURN$dTURN
-# mProxies$PVOL <- prx_PVOL$PVOL
-# rownames(mProxies) <- rownames(prx_TURN)
-
 LAG <- 12
-mProxies$NIPOlag <- c(rep(NA,LAG),mProxies$NIPO[1:(nrow(mProxies)-LAG)])
-mProxies$Slag    <- c(rep(NA,LAG),mProxies$S[1:(nrow(mProxies)-LAG)])
-mProxies$TURNlag <- c(rep(NA,LAG),mProxies$TURN[1:(nrow(mProxies)-LAG)])
-# mProxies$QNlag   <- c(rep(NA,LAG),mProxies$QN  [1:(nrow(mProxies)-LAG)])
-mProxies$PVOLlag <- c(rep(NA,LAG),mProxies$PVOL[1:(nrow(mProxies)-LAG)])
-
-# ## Plotar todas as Proxies
-plot(ts(mProxies, start(1999,1), frequency=12), main = "Proxies")
-
+mProxies <- ts.intersect(
+    NIPO  = ts(c(prx_NIPO$CVM,rep(0,6)) ,  start=c(PERIOD.n,1), frequency=(12)),
+    S     = ts(prx_S$Issues ,  start=c(PERIOD.n,1), frequency=(12)),
+    # TURNV = ts(prx_TURNv$TURN, start=c(PERIOD.n,1), frequency=(12)),
+    # dTURNV = ts(prx_TURNv$dTURN, start=c(PERIOD.n,1), frequency=(12)),
+    dTURNQ = ts(prx_TURNq$dTURN, start=c(PERIOD.n,1), frequency=(12)),
+    # QN   = ts(prx_TURNq$dQN,   start=c(PERIOD.n,1), frequency=(12)),
+    PVOL = ts(prx_PVOL$PVOL,  start=c(PERIOD.n,1), frequency=(12)),
+    NIPOlag = lag(ts(prx_NIPO$CVM,   start=c(PERIOD.n,1), frequency=(12)), -LAG),
+    Slag    = lag(ts(prx_S$Issues,   start=c(PERIOD.n,1), frequency=(12)), -LAG),
+    # TURNVlag = lag(ts(prx_TURNv$TURN, start=c(PERIOD.n,1), frequency=(12)), -LAG),
+    # dTURNVlag = lag(ts(prx_TURNv$dTURN, start=c(PERIOD.n,1), frequency=(12)), -LAG),
+    dTURNQlag = lag(ts(prx_TURNq$dTURN, start=c(PERIOD.n,1), frequency=(12)), -LAG),
+    # QNlag   = lag(ts(prx_TURNq$dQN,   start=c(PERIOD.n,1), frequency=(12)), -LAG),
+    PVOLlag = lag(ts(prx_PVOL$PVOL,  start=c(PERIOD.n,1), frequency=(12)), -LAG),
+    dframe = T)
+row.names(mProxies) <- as.character(as.Date(index(as.xts(mProxies[,1]))))
 ## Correlations
 #   as.dist(round(cor(mProxies, use="everything"),2)) # c/ Na
 as.dist(round(cor(mProxies, use="na.or.complete"),2)) # s/ NA
 
 ## 3.2 First Step # ============================================================
 # Estimating first component of all proxies and their lags and choose the best
-mProxies <- mProxies[!is.na(mProxies$Slag),]
+# mProxies <- mProxies[!is.na(mProxies$Slag),]
 PCAstep1 <- prcomp(mProxies, scale=T, center = TRUE)
 
 round(cor(PCAstep1$x[,"PC1"],mProxies),2) * (-1)     # The correlations
@@ -384,7 +315,7 @@ PCAstep2 <-prcomp(mBestProxies, scale=T, center = TRUE)
 ## Correlation with PC1 of the 1º step
 abs(cor(PCAstep1$x[,"PC1"],PCAstep2$x[,"PC1"]))
 
-## Proportion of Variance
+# ## Proportion of Variance
 summary(PCAstep2)
 
 ## Not orthogonalized index (osb.: not important)
@@ -414,40 +345,14 @@ mMacroeconomics <- data.frame(PIB=PIB$Value, RECESS=RECESS$Value,
 
 rm(list = c("PIB", "RECESS", "data_inicial"))
 
-## Consumo (% Change)
-
-# # Read macroeconomics variables
-# mMacroeconomics   <- read.table ("Input/mMacroeconomics.csv",   header = T, 
-#                               sep=";", dec=",", na.strings="-", row.names=1)
-# # Date Filter
-# tmp <- as.Date(rownames(mMacroeconomics), format="%d/%m/%Y")
-# mMacroeconomics <-  mMacroeconomics[(tmp >= as.Date("2001-01-01") &
-#                                          tmp <= as.Date("2013-12-01")),]
-# rm(tmp)
-# ## https://www.quandl.com/FRED/BRARECM
-# # dummy SELIC igual a 1 quando a taxa cai em rela??o ao m?s anterior
-# dSELIC <- c(0,as.numeric(embed(mMacroeconomics$SELIC,2)[,1] <= 
-#                                  embed(mMacroeconomics$SELIC,2)[,2]
-# ))
-# # dummy PIB igual a 1 quando o PIB sobe em rela??o ao m?s anterior
-# dPIB   <- c(0,as.numeric(embed(mMacroeconomics$PIB,2)[,1] >=
-#                                  embed(mMacroeconomics$PIB,2)[,2]
-# ))
-# # Retirando a série da Selic e deixando só a do PIB
-# mMacroeconomics$SELIC <- NULL
-# # Acrescentando o dPIB e o dSELIC
-# mMacroeconomics <-cbind(mMacroeconomics, dPIB, dSELIC)
-# rm(list=c("dPIB","dSELIC"))
-
 # Estimando Proxies Ortogonalizada
 mProxiesOrtog <- ortogonalizeProxies(mBestProxies, mMacroeconomics)
 
-## Plotar todas as mProxiesOrtog
-plot(ts(mBestProxies, start(PERIOD.n,1), frequency=12), col="dark gray")
-plot(ts(mProxiesOrtog, start(PERIOD.n,1), frequency=12), col="blue")
+# ## Plotar todas as mProxiesOrtog
+# plot(ts(mProxiesOrtog, start(1999,1), frequency=12))
 
 # Estimando Componentes Principais da Terceira Etapa
-PCAstep3 <- prcomp(mProxiesOrtog, scale=T, center = TRUE)
+PCAstep3 <-prcomp(mProxiesOrtog, scale=T, center = TRUE)
 
 # Verificando correlacao com o primeiro indice
 abs(cor(PCAstep2$x[,"PC1"],PCAstep3$x[,"PC1"]))
@@ -460,28 +365,14 @@ screeplot(PCAstep3, type="line", main="Scree Plot Sentimento Ortogonalizado")
 
 PCAstep3$rotation[,"PC1"] # Equacao do Indice de Sent. Ortogonalizado
 
-Sentiment <- ts(PCAstep3$x[,"PC1"] * (-1), start=c(2000,1), frequency=12)
-SentNO    <- ts(PCAstep2$x[,"PC1"] * (-1), start=c(2000,1), frequency=12)
-# Sentiment   <- ts(PCAstep3$x[,"PC1"], start=c(2000,1), frequency=12)
-# SentNO      <- ts(PCAstep2$x[,"PC1"], start=c(2000,1), frequency=12)
+Sentiment <- ts(PCAstep3$x[,"PC1"], start=c(2000,1), frequency=12)
+SentNO <- ts(PCAstep2$x[,"PC1"], start=c(2000,1), frequency=12)
 
 ## Plotar Sentimento e SentimentoNO (Não Ortogonalizado)
 plot(SentNO, col="dark red", lty="dashed")
 lines(Sentiment, col="blue")
 abline(h = 0, lty = 3)
 
-# ## INDICE DE SENTIMENTO RESULTADOS # -------------------------------------------
-# as.dist(round(cor(mProxies),2))                      # Verificando correlação entre as proxies
-# round(cor(PCAstep1$x[,"PC1"],mProxies),2)            # Correlação das Proxies com 1ª Componente da 1ª Etapa
-# round(cor(PCAstep1$x[,"PC1"],mBestProxies),2)        # Correlação Proxies Escolhidas c/ 1ª Componente da 1ª Etapa
-# cor(PCAstep1$x[,"PC1"],PCAstep2$x[,"PC1"]) * (-1)    # Verificando correlacao com o primeiro indice
-# summary(PCAstep2)                                    # Percentual explicado da variancia
-# PCAstep2$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Nao Ortogonalizado
-# as.dist(round(cor(mBestProxies),2))                  # Correlação Proxies Escolhidas
-# round(cor(PCAstep2$x[,"PC1"],mBestProxies),2) * (-1) # Correlação Proxies Escolhidas c/ 1ª Componente da 2ª Etapa
-# cor(PCAstep2$x[,"PC1"],PCAstep3$x[,"PC1"])           # Correlação do Indice da 3ª etapa com o da 2ª etapa
-# summary(PCAstep3)                                    # Percentual explicado da variancia
-# PCAstep3$rotation[,"PC1"] * (-1)                     # Equacao do Indice de Sentimento Ortogonalizado
 
 ## 4. PRICING MODELS ## #######################################################
 ## 5.1 Serie do Retorno do Ativos Livre de Risco
@@ -514,7 +405,7 @@ MKT <- ts(tmp$rVW, start=c(PERIOD.n,07), frequency=12) ; rm(tmp)
 
 ## Carteira de Mercado (Ibovespa)
 IBV  <- Quandl("BCB/7845", type="ts", collapse="monthly", sort="asc",
-#               transformation="rdiff",
+               #               transformation="rdiff",
                trim_start=as.Date(paste(PERIOD.n+1,"-06-01", sep="")),
                trim_end=as.Date(paste(PERIOD.N,"-06-01", sep="")))
 IBV <- diff(log(IBV),1)
@@ -535,6 +426,9 @@ assetsF_BM_H <- portfolioSelectAssets(yBM,3,1) * 1 # Value  (High BM)
 assetsF_BM_N <- portfolioSelectAssets(yBM,3,2) * 1 # Neutral
 assetsF_BM_L <- portfolioSelectAssets(yBM,3,3) * 1 # Growth (Low BM)
 
+assetsF_MOM_H <- portfolioSelectAssets(yMomentum,3,1) * 1 # Value  (High BM)
+assetsF_MOM_L <- portfolioSelectAssets(yMomentum,3,3) * 1 # Growth (Low BM)
+
 ## Carteiras a partir da Interação
 
 assetsF_SH <- assetsF_Size_S[-1,] * assetsF_BM_H # Small Value (High BM)
@@ -550,12 +444,25 @@ assetsF_SL <- apply(assetsF_SL, 2, function(x) as.logical(x) ) # Small Growth (L
 assetsF_BH <- apply(assetsF_BH, 2, function(x) as.logical(x) ) # Big Value (High BM)
 assetsF_BN <- apply(assetsF_BN, 2, function(x) as.logical(x) ) # Big Neutral
 assetsF_BL <- apply(assetsF_BL, 2, function(x) as.logical(x) ) # Big Growth (Low BM)
+assetsF_SWI <- (assetsF_Size_S * assetsF_MOM_H)[-1,] # Small Win
+assetsF_SLO <- (assetsF_Size_S * assetsF_MOM_L)[-1,] # Small Los
+assetsF_BWI <- (assetsF_Size_B * assetsF_MOM_H)[-1,] # Big Win
+assetsF_BLO <- (assetsF_Size_B * assetsF_MOM_L)[-1,] # Big Los
+assetsF_SWI <- apply(assetsF_SWI, 2, function(x) as.logical(x) )
+assetsF_SLO <- apply(assetsF_SLO, 2, function(x) as.logical(x) )
+assetsF_BWI <- apply(assetsF_BWI, 2, function(x) as.logical(x) )
+assetsF_BLO <- apply(assetsF_BLO, 2, function(x) as.logical(x) )
+
 rownames(assetsF_SH) <- rownames(yBM)
 rownames(assetsF_SN) <- rownames(yBM)
 rownames(assetsF_SL) <- rownames(yBM)
 rownames(assetsF_BH) <- rownames(yBM)
 rownames(assetsF_BN) <- rownames(yBM)
 rownames(assetsF_BL) <- rownames(yBM)
+rownames(assetsF_SWI) <- rownames(yBM)
+rownames(assetsF_SLO) <- rownames(yBM)
+rownames(assetsF_BWI) <- rownames(yBM)
+rownames(assetsF_BLO) <- rownames(yBM)
 
 ## Retornos
 portF_SH <- portfolioSerie(mReturns, mMVclass, assetsF_SH)
@@ -564,6 +471,10 @@ portF_SL <- portfolioSerie(mReturns, mMVclass, assetsF_SL)
 portF_BH <- portfolioSerie(mReturns, mMVclass, assetsF_BH)
 portF_BN <- portfolioSerie(mReturns, mMVclass, assetsF_BN)
 portF_BL <- portfolioSerie(mReturns, mMVclass, assetsF_BL)
+portF_SWI <- portfolioSerie(mReturns, mMVclass, assetsF_SWI)
+portF_SLO <- portfolioSerie(mReturns, mMVclass, assetsF_SLO)
+portF_BWI <- portfolioSerie(mReturns, mMVclass, assetsF_BWI)
+portF_BLO <- portfolioSerie(mReturns, mMVclass, assetsF_BLO)
 rm(list=ls(pattern = "assetsF_"))
 
 ## Fatores de Risco # ----------------------------------------------------------
@@ -583,6 +494,13 @@ SMB <-ts(SMB, start=c(PERIOD.n,7), frequency=12)
 HML <- (portF_SH$rVW + portF_BH$rVW)/2 - (portF_SL$rVW + portF_BL$rVW)/2
 HML <- ts(HML, start=c(PERIOD.n,7), frequency=12)
 
+## FATOR MOMENTO (UMD)
+##
+## Mom =    1/2 (Small High + Big High) - 1/2(Small Low + Big Low).	
+##
+UMD <- (portF_SWI$rVW + portF_BWI$rVW)/2 - (portF_SLO$rVW + portF_BLO$rVW)/2
+UMD <- ts(UMD, start=c(PERIOD.n,7), frequency=12)
+
 # ## Pequeno Teste dos Fatores
 # summary(lm(portF_SH$rVW-Rf ~ MKT + SMB + HML))
 # summary(lm(portF_SN$rVW-Rf ~ MKT + SMB + HML))
@@ -591,12 +509,12 @@ HML <- ts(HML, start=c(PERIOD.n,7), frequency=12)
 # summary(lm(portF_BN$rVW-Rf ~ MKT + SMB + HML))
 # summary(lm(portF_BL$rVW-Rf ~ MKT + SMB + HML))
 # 
-# NW(lm(portF_SH$rVW-Rf ~ MKT + SMB + HML))
-# NW(lm(portF_SN$rVW-Rf ~ MKT + SMB + HML))
-# NW(lm(portF_SL$rVW-Rf ~ MKT + SMB + HML))
-# NW(lm(portF_BH$rVW-Rf ~ MKT + SMB + HML))
-# NW(lm(portF_BN$rVW-Rf ~ MKT + SMB + HML))
-# NW(lm(portF_BL$rVW-Rf ~ MKT + SMB + HML))
+NW(lm(portF_SH$rVW-Rf ~ MKT + SMB + HML + UMD))
+NW(lm(portF_SN$rVW-Rf ~ MKT + SMB + HML + UMD))
+NW(lm(portF_SL$rVW-Rf ~ MKT + SMB + HML + UMD))
+NW(lm(portF_BH$rVW-Rf ~ MKT + SMB + HML + UMD))
+NW(lm(portF_BN$rVW-Rf ~ MKT + SMB + HML + UMD))
+NW(lm(portF_BL$rVW-Rf ~ MKT + SMB + HML + UMD))
 
 ## 5. CONSTRUCT PORTFOLIOS ## ##################################################
 ## 5.1 BW  Portfolios
@@ -801,99 +719,16 @@ reportAvarege("Long", Sentiment)
 #== 6.2 Predictive Regressions # ===============================================
 ## model1, modelCAPM, model3F, model4F e model5F
 
-reportRegSent(Sentiment, 1) ## Sentiment and Returns
-reportRegCAPM(Sentiment, 1) ## CAPM
-reportReg3F(Sentiment,   1) ## FF1993
+reportRegSent(Sentiment, 1)   ## Sentiment and Returns
+reportRegCAPM(Sentiment, 1)   ## CAPM
+reportReg3F  (Sentiment,   1) ## FF1993
 
-#   6.2.2 Sentiment High and Low - ---------------------------------------------
-tmp  <- ts(1:(length(LS$LONG)+1), start=c(PERIOD.n+1, 6), frequency=12)
-Sent <- ts.intersect(Sentiment, tmp, dframe=TRUE)$Sentiment ; rm(tmp)
-dH <- ts(as.numeric(Sent >= quantile(Sent,0.65)), start=start(Sent), frequency=frequency(Sent))
-dL <- ts(as.numeric(Sent <= quantile(Sent,0.45)), start=start(Sent), frequency=frequency(Sent))
-dH <- lag(dH, -1) # 1 quando o Sentimento no mes anterior esta acima da mediana
-dL <- lag(dL, -1) # 1 quando o Sentimento no mes anterior esta abixo da mediana
-sum(dH) ; sum(dL); cor(dH,dL)
-#' SYY utiliza a mediana p/ fazer as dummies, utilizei os quantis 0.35 e 0.65
-#' para evitar problema de multicolineariedade.
-#'
+# load(paste(getwd(),"/Data/", "20141022_FINAL.RData", sep=""))
+# save.image(paste(getwd(),"/Data/", "20141022_FINAL.RData", sep=""))
+fator_momento <- summary(dynlm(ls_MOM$LONG   - ls_MOM$SHORT   ~ L(Sentiment, 1)+MKT+SMB+HML+UMD))
 
-tmp <- ls_TAM
-summary(dynlm(tmp$LONG ~  dH  + dL + MKT))
-summary(dynlm(tmp$SHORT ~ dH + dL + MKT))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL  + MKT))
-summary(dynlm(tmp$LONG ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$SHORT ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL + MKT + SMB + HML))
+# save.image(paste(getwd(),"/Data/", format(Sys.Date(), "%Y%m%d"),
+#                   "_", format(Sys.time(),"%H%M%S"), ".RData", sep=""))
 
-tmp <- ls_LIQ
-summary(dynlm(tmp$LONG ~ dH  + dL + MKT))
-summary(dynlm(tmp$SHORT ~ dH  + dL + MKT))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL  + MKT))
-summary(dynlm(tmp$LONG ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$SHORT ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL + MKT + SMB + HML))
-
-tmp <- ls_VOL
-summary(dynlm(tmp$LONG ~ dH  + dL + MKT))
-summary(dynlm(tmp$SHORT ~ dH  + dL + MKT))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL  + MKT))
-summary(dynlm(tmp$LONG ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$SHORT ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL + MKT + SMB + HML))
-
-tmp <- ls_BM
-summary(dynlm(tmp$LONG ~ dH  + dL + MKT))
-summary(dynlm(tmp$SHORT ~ dH  + dL + MKT))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL  + MKT))
-summary(dynlm(tmp$LONG ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$SHORT ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL + MKT + SMB + HML))
-
-tmp <- ls_MOM
-summary(dynlm(tmp$LONG ~ dH  + dL + MKT))
-summary(dynlm(tmp$SHORT ~ dH  + dL + MKT))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL  + MKT))
-summary(dynlm(tmp$LONG ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$SHORT ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL + MKT + SMB + HML))
-
-tmp <- ls_EBTDA
-summary(dynlm(tmp$LONG ~ dH  + dL + MKT))
-summary(dynlm(tmp$SHORT ~ dH  + dL + MKT))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL  + MKT))
-summary(dynlm(tmp$LONG ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$SHORT ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL + MKT + SMB + HML))
-
-tmp <- ls_ENDIV
-summary(dynlm(tmp$LONG ~ dH  + dL + MKT))
-summary(dynlm(tmp$SHORT ~ dH  + dL + MKT))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL  + MKT))
-summary(dynlm(tmp$LONG ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$SHORT ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL + MKT + SMB + HML))
-
-tmp <- ls_LP
-summary(dynlm(tmp$LONG ~ dH  + dL + MKT))
-summary(dynlm(tmp$SHORT ~ dH  + dL + MKT))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL  + MKT))
-summary(dynlm(tmp$LONG ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$SHORT ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL + MKT + SMB + HML))
-
-tmp <- ls_ROA
-summary(dynlm(tmp$LONG  ~ dH  + dL + MKT))
-summary(dynlm(tmp$SHORT ~ dH  + dL + MKT))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL  + MKT))
-summary(dynlm(tmp$LONG  ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$SHORT ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL + MKT + SMB + HML))
-
-tmp <- LS
-summary(dynlm(tmp$LONG  ~ dH  + dL + MKT))
-summary(dynlm(tmp$SHORT ~ dH  + dL + MKT))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL  + MKT))
-summary(dynlm(tmp$LONG  ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$SHORT ~ dH + dL + MKT + SMB + HML))
-summary(dynlm(tmp$LONG - LS$SHORT ~ dH + dL + MKT + SMB + HML))
-
+# save.image(paste(getwd(),"/Data/", format(Sys.Date(), "%Y%m%d"),
+#                  "_", "QN", ".RData", sep=""))

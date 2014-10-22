@@ -657,7 +657,59 @@ calcularS <- function(IPO, Subsequentes, Dividas) {
     return(Out)
 }
 
-calcularTURN <- function(Negociab, QN, QT, Periodo, lagDetrend, Liq) {
+calcularTURN <- function(Negociab, Volume, MarketCapitalization, Periodo, lagDetrend, Liq) {
+    ## Calcula a proxy TURN
+    ##
+    ## INPUTS
+    ##
+    ## Negociab ... Matriz mensal de negociacao
+    ##  ......... Matriz mensal c/ 
+    ##  ......... Matriz mensal c/ 
+    ## Periodo .... String com o periodo desejado de filtragem
+    ## lagDetrend ... Numero de anos da MMA.
+    ## Liq .......... Numero minimo de liquidez
+    
+    require(TTR)
+    
+    n <- as.numeric(substr(Periodo, 1, 4)) # Extraindo ano inicial
+    
+    # Periodo suficiente p/ calculo da MMA que destendenciara a serie
+    periodo_turn <- sub(n, (n - lagDetrend), Periodo)
+    
+    mNegociab <- importaBaseCSV(Negociab, periodo_turn)
+    
+    mVL       <- importaBaseCSV(Volume, periodo_turn, ignora=1)
+    mVL       <- padronizaBase(mVL)
+    
+    mMC       <- importaBaseCSV(MarketCapitalization, periodo_turn, ignora=1)
+    mMC <- data.frame(lapply(mMC, as.numeric ), row.names=rownames(mMC))
+    
+    dNegociab <- mNegociab
+    dNegociab[!is.na(mNegociab)]  <- NA
+    dNegociab <- as.data.frame(apply(dNegociab, 2, function(x) as.logical(x) ))
+    rownames(dNegociab) <- rownames(mNegociab)
+    dNegociab[is.na(dNegociab) ]  <- F
+    dNegociab[mNegociab >= Liq]  <- T
+    
+    ## Total de Volume e MarketCapitalization
+    Out <- mapply(function(mc,dn) { sum(mc[dn], na.rm=T) },
+                  as.data.frame(t(mMC)), as.data.frame(t(dNegociab)))
+    Out <- as.data.frame(Out) ; colnames(Out) <- "Cap"
+    Out$Volume <- mapply(function(vl,dn) { sum(vl[dn], na.rm=T) },
+                     as.data.frame(t(mVL)), as.data.frame(t(dNegociab)))
+    
+    # Diminuir escala
+    Out$Volume <- Out$Volume #/ 10000
+    Out$Cap    <- Out$Cap    #/ 10000
+    
+    # Calcular TURNOVER
+    Out$TURN  <- log(Out$Volume / Out$Cap)
+    Out$dTURN <- Out$TURN - SMA(Out$TURN, 12*lagDetrend) # Turnover detrended
+    
+    as.data.frame(as.xts(Out)[Periodo])
+}
+
+calcularTURNqtd <- function(Negociab, QN, QT, Periodo, lagDetrend, Liq) {
     ## Calcula a proxy TURN
     ##
     ## INPUTS
@@ -698,21 +750,72 @@ calcularTURN <- function(Negociab, QN, QT, Periodo, lagDetrend, Liq) {
                      as.data.frame(t(mQN)), as.data.frame(t(dNegociab)))
     
     # Variaveis em Log
-    Out$QN <- log(Out$QN) # Out$QN / 10000
-    Out$QT <- log(Out$QT) # Out$QT / 10000
+    Out$QN <- Out$QN / 10000
+    Out$QT <- Out$QT / 10000
     
     # Calcular TURNOVER
-    Out$TURN  <- Out$QN / Out$QT
-    Out$dTURN <- (Out$TURN - SMA(Out$TURN, 12*lagDetrend)) # Turnover detrended
+    Out$TURN  <- log(Out$QN / Out$QT)
+    Out$dTURN <- Out$TURN - SMA(Out$TURN, 12*lagDetrend) # Turnover detrended
     
     # Medida Alternativa, somente o QN
-    Out$dQN <- (Out$QN - SMA(Out$QN, 12*lagDetrend)) # log(QN) detrended
+    Out$dQN <- Out$QN - SMA(Out$QN, 12*lagDetrend) # log(QN) detrended
     
     as.data.frame(as.xts(Out)[Periodo])
 }
 
 calcularPVOL <- function () {
-
+    ## Calcula a proxy PVOL - Premio Volatilidade
+    ## 
+    ## INPUTS
+    ##
+    require(lubridate)
+    MV  <- importaBaseCSV("Input/mMarketValueFirm.csv", PERIOD.PRX, ignora=1)[,1:1108]
+    tmp <- quarter(rownames(MV))!=c(quarter(rownames(MV))[-1],TRUE)
+    qMVfirm <- MV[tmp,] ; rm(MV)
+    
+    qBookFirm <- importaBaseCSV("Input/qBookFirm.csv", PERIOD.PRX, ignora=1)[,1:1108]
+    qBookFirm[qBookFirm<=0]     <- NA
+    qMVfirm[qBookFirm<=0]       <- NA
+    qBookFirm[is.na(qBookFirm)] <- NA
+    qMVfirm[is.na(qBookFirm)]   <- NA
+    qBookFirm[is.na(qMVfirm)]   <- NA
+    qMVfirm[is.na(qMVfirm)]     <- NA
+    
+    qMB <- as.data.frame(mapply( function(mkt,book) { mkt/book },
+                                 as.data.frame((qMVfirm)),
+                                 as.data.frame((qBookFirm))) )
+    rownames(qMB) <- rownames(qMVfirm)
+    
+    DP12m    <- importaBaseCSV("Input/mDP12m.csv", PERIOD.PRX, ignora = 1)[,1:1108]
+    tmp <- quarter(rownames(DP12m))!=c(quarter(rownames(DP12m))[-1],TRUE)
+    qDP12m <- DP12m[tmp,] ; rm(DP12m)
+    
+    # Valor de Mercado da Classe p/ ponderacao
+    MV  <- importaBaseCSV("Input/mMarketValue.csv", PERIOD.PRX, ignora=1)
+    tmp <- quarter(rownames(MV))!=c(quarter(rownames(MV))[-1],TRUE)
+    qMVclass <- MV[tmp,1:108] ; rm(MV)
+    
+    # Media Ponderada pelo VM do MB das acoes de alta volatilidade (High Volatility)
+    A  <- as.data.frame(t(portfolioSelectAssets(qDP12m, 3, 3)))
+    MB <- as.data.frame(t(qMB))
+    V  <- as.data.frame(t(qMVclass))
+    MBhv <- mapply(function(mb,v,a) { sum(mb[a]*v[a]/sum(v[a], na.rm=T), na.rm=T) }
+                   , MB, V, A )
+    
+    # Media Ponderada pelo VM do MB das acoes de baixa volatilidade (Low Volatility)
+    A  <- as.data.frame(t(portfolioSelectAssets(qDP12m, 3, 1)))
+    MBlv <- mapply(function(mb,v,a) { sum(mb[a]*v[a]/sum(v[a], na.rm=T), na.rm=T) }
+                   , MB, V, A )
+    rm(list=c("A","MB","V"))
+    
+    # Calcular PVOL
+    Out <- as.data.frame(MBhv)
+    Out$MBlv <- MBlv
+    Out$PVOL <- log(MBhv/MBlv)    
+    Out <- Out[sort(rep(1:nrow(Out),3)),]
+    rownames(Out) <- rownames(prx_TURN)
+    rm(list=c("MBlv","MBhv"))
+    return(Out)
 }
 
 chooseLAG <- function (m) {
@@ -743,7 +846,7 @@ chooseLAG <- function (m) {
     # ______________________________________________________________
 }
 
-orgonalizeProxies <- function (Proxies, MacroVar) {
+ortogonalizeProxies <- function (Proxies, MacroVar) {
     MacroVar <-  as.matrix(MacroVar)
     Out <- sapply(Proxies, function(x) residuals(lm(x~MacroVar)))
     rownames(Out) <- rownames(Proxies)
@@ -1286,6 +1389,12 @@ reportRegSent <- function(SentimentIndex, Lag) {
     colnames(Out) <- c("        LONG", "t stat", "p value",
                        "       SHORT", "t stat", "p value",
                        "   LONGSHORT", "t stat", "p value")
+    Out <- as.data.frame(round(Out,3))
+    barplot(abs(Out[,8]), main = 'Sentiment and Return',
+            ylab= "Alpha t-stat",
+            xlab="Long Short Portfolios (t-stat > 1.7)",
+            axisnames=T, names.arg = rownames(Out))
+    abline(h = 1.7, lty = 3)
     print(rbind(Qtd.Sign.=c("      0.1"=sum(Out[1:9,3] <= 0.1),
                             "  0.05"=sum(Out[1:9,3] <= 0.05),
                             "   0.01"=sum(Out[1:9,3] <= 0.01),
@@ -1296,7 +1405,7 @@ reportRegSent <- function(SentimentIndex, Lag) {
                             "  0.05"=sum(Out[1:9,9] <= 0.05),
                             "   0.01"=sum(Out[1:9,9] <= 0.01))), quote=FALSE)
     cat("\n")
-    return(as.data.frame(round(Out,3)))
+    return(Out)
 }
 
 reportRegCAPM <- function(SentimentIndex, Lag) {
@@ -1336,6 +1445,12 @@ reportRegCAPM <- function(SentimentIndex, Lag) {
     colnames(Out) <- c("        LONG", "t stat", "p value",
                        "       SHORT", "t stat", "p value",
                        "   LONGSHORT", "t stat", "p value")
+    Out <- as.data.frame(round(Out,3))
+    barplot(abs(Out[,8]), main = 'Sentiment and Return (CAPM adjusted)',
+            ylab= "Alpha t-stat",
+            xlab="Long Short Portfolios (t-stat > 1.7)",
+            axisnames=T, names.arg = rownames(Out))
+    abline(h = 1.7, lty = 3)
     print(rbind(Qtd.Sign.=c("      0.1"=sum(Out[1:9,3] <= 0.1),
                             "  0.05"=sum(Out[1:9,3] <= 0.05),
                             "   0.01"=sum(Out[1:9,3] <= 0.01),
@@ -1346,7 +1461,7 @@ reportRegCAPM <- function(SentimentIndex, Lag) {
                             "  0.05"=sum(Out[1:9,9] <= 0.05),
                             "   0.01"=sum(Out[1:9,9] <= 0.01))), quote=FALSE)
     cat("\n")
-    return(as.data.frame(round(Out,3)))
+    return(Out)
 }
 
 reportReg3F <- function(SentimentIndex, Lag) {
@@ -1386,9 +1501,15 @@ reportReg3F <- function(SentimentIndex, Lag) {
     colnames(Out) <- c("        LONG", "t stat", "p value",
                        "       SHORT", "t stat", "p value",
                        "   LONGSHORT", "t stat", "p value")
-    print(rbind(Qtd.Sign.=c("      0.1"=sum(Out[1:9,3] <= 0.1),
-                            "  0.05"=sum(Out[1:9,3] <= 0.05),
-                            "   0.01"=sum(Out[1:9,3] <= 0.01),
+    Out <- as.data.frame(round(Out,3))
+    barplot(abs(Out[,8]), main = 'Sentiment and Return (FF 3 Factors adjusted)',
+            ylab= "Alpha t-stat",
+            xlab="Long Short Portfolios (t-stat > 1.7)",
+            axisnames=T, names.arg = rownames(Out))
+    abline(h = 1.7, lty = 3)
+    print(rbind(Qtd.Sign.=c("      0.1"=sum(Out[1:9,3] <= 0.01),
+                            "  0.05"=sum(Out[1:9,3] <= 0.005),
+                            "   0.01"=sum(Out[1:9,3] <= 0.001),
                             "          0.1"=sum(Out[1:9,6] <= 0.1),
                             "  0.05"=sum(Out[1:9,6] <= 0.05),
                             "   0.01"=sum(Out[1:9,6] <= 0.01),
@@ -1396,5 +1517,5 @@ reportReg3F <- function(SentimentIndex, Lag) {
                             "  0.05"=sum(Out[1:9,9] <= 0.05),
                             "   0.01"=sum(Out[1:9,9] <= 0.01))), quote=FALSE)
     cat("\n")
-    return(as.data.frame(round(Out,3)))
+    return(Out)
 }

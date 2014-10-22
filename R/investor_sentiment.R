@@ -10,12 +10,12 @@
 ## 1. SETTINGS
 ## 2. GET DATA AND CLEAN
 ## 3. INVESTOR SENTIMENT INDEX
-## 4. CONSTRUCT PORTFOLIOS
-## 5. PRICING MODELS
+## 4. PRICING MODELS
+## 5. CONSTRUCT PORTFOLIOS
 ## 6. INVESTOR SENTIMENT AND ANOMALIES
 ##
 
-#' 
+#'
 
 ## 1. SETTINGS ## ##############################################################
 ## Definir parâmetros
@@ -56,6 +56,9 @@ pkg <- "Quandl"    ; if ( !(pkg %in% ip) ) { install.packages(pkg) }
 pkg <- "TTR"       ; if ( !(pkg %in% ip) ) { install.packages(pkg) }
 pkg <- "XML"       ; if ( !(pkg %in% ip) ) { install.packages(pkg) }
 pkg <- "xts"       ; if ( !(pkg %in% ip) ) { install.packages(pkg) }
+pkg <- "lmtest"    ; if ( !(pkg %in% ip) ) { install.packages(pkg) }
+pkg <- "sandwich"  ; if ( !(pkg %in% ip) ) { install.packages(pkg) }
+
 rm(list=c("ip","pkg"))
 
 ## Carregar pacotes / Load packages --------------------------------------------
@@ -65,6 +68,8 @@ library("Quandl") ; Quandl.auth("WP2rt8HsRo3kjWsRkLY5")
 library("xts")
 library("TTR")
 library("XML")
+library("lmtest")
+library("sandwich")
 
 ## Executar minhas funçoes / Run my functions
 source("R/functions.R")
@@ -238,19 +243,19 @@ prx_S$DEB[prx_S$DEB==0] <- EMA(prx_S$DEB, 6)[prx_S$DEB==0]
 # http://www.fmlabs.com/reference/default.htm?url=ExpMA.htm
 
 prx_S$Issues <- prx_S$A / ( prx_S$A + prx_S$DEB ) # Recalculando S
+S <- prx_S
+S$A <- S$DEB <- NULL
 
-prx_S$Issues <- c(prx_S$Issues[1:5],SMA(prx_S$Issues,6)[-(1:5)])
+# prx_S$Issues <- c(prx_S$Issues[1:5],SMA(prx_S$Issues,6)[-(1:5)])
 
 prx_S <- as.data.frame(as.xts(prx_S)[PERIOD.PRX])
 
 ## Calcular TURN
 prx_TURN <- calcularTURN ("Input/mNegociabilidade.csv",
                           "Input/mQN.csv",
-                          "Input/mQT.csv",
-                          #"Input/mQTOutStanding.csv",
+                          # "Input/mQT.csv",
+                          "Input/mQTOutStanding.csv",
                           PERIOD.PRX, lagDetrend=1, Liq=0.01)
-
-# plot(ts(prx_TURN$dTURN, start=c(1999,1), frequency=12))
 
 ## Calcular PVOL # -------------------------------------------------------------
 
@@ -435,13 +440,14 @@ rm(list = c("PIB", "RECESS", "data_inicial"))
 # rm(list=c("dPIB","dSELIC"))
 
 # Estimando Proxies Ortogonalizada
-mProxiesOrtog <- orgonalizeProxies(mBestProxies, mMacroeconomics)
+mProxiesOrtog <- ortogonalizeProxies(mBestProxies, mMacroeconomics)
 
 ## Plotar todas as mProxiesOrtog
-plot(ts(mProxiesOrtog, start(1999,1), frequency=12))
+plot(ts(mBestProxies, start(PERIOD.n,1), frequency=12), col="dark gray")
+plot(ts(mProxiesOrtog, start(PERIOD.n,1), frequency=12), col="blue")
 
 # Estimando Componentes Principais da Terceira Etapa
-PCAstep3 <-prcomp(mProxiesOrtog, scale=T, center = TRUE)
+PCAstep3 <- prcomp(mProxiesOrtog, scale=T, center = TRUE)
 
 # Verificando correlacao com o primeiro indice
 abs(cor(PCAstep2$x[,"PC1"],PCAstep3$x[,"PC1"]))
@@ -454,10 +460,10 @@ screeplot(PCAstep3, type="line", main="Scree Plot Sentimento Ortogonalizado")
 
 PCAstep3$rotation[,"PC1"] # Equacao do Indice de Sent. Ortogonalizado
 
-# Sentiment <- ts(PCAstep3$x[,"PC1"] * (-1), start=c(2000,1), frequency=12)
-# SentNO <- ts(PCAstep2$x[,"PC1"] * (-1), start=c(2000,1), frequency=12)
-Sentiment <- ts(PCAstep3$x[,"PC1"], start=c(2000,1), frequency=12)
-SentNO <- ts(PCAstep2$x[,"PC1"], start=c(2000,1), frequency=12)
+Sentiment <- ts(PCAstep3$x[,"PC1"] * (-1), start=c(2000,1), frequency=12)
+SentNO    <- ts(PCAstep2$x[,"PC1"] * (-1), start=c(2000,1), frequency=12)
+# Sentiment   <- ts(PCAstep3$x[,"PC1"], start=c(2000,1), frequency=12)
+# SentNO      <- ts(PCAstep2$x[,"PC1"], start=c(2000,1), frequency=12)
 
 ## Plotar Sentimento e SentimentoNO (Não Ortogonalizado)
 plot(SentNO, col="dark red", lty="dashed")

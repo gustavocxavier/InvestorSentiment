@@ -418,51 +418,54 @@ MKT <- MKT-Rf
 
 ## 4.2 Fatores de Risco # ======================================================
 
-## Carteiras por Fator
-assetsF_Size_S <- portfolioSelectAssets(yMVclassJun,2,1) * 1 # Small
-assetsF_Size_B <- portfolioSelectAssets(yMVclassJun,2,2) * 1 # Big   
+## Carteiras por Fator (aF: assets Factors)
+aF_Size_S <- portfolioSelectAssets(yMVclassJun,2,1) * 1 # Small
+aF_Size_B <- portfolioSelectAssets(yMVclassJun,2,2) * 1 # Big   
 
-assetsF_BM_H <- portfolioSelectAssets(yBM,3,1) * 1 # Value  (High BM)
-assetsF_BM_N <- portfolioSelectAssets(yBM,3,2) * 1 # Neutral
-assetsF_BM_L <- portfolioSelectAssets(yBM,3,3) * 1 # Growth (Low BM)
+aF_BM_H <- portfolioSelectAssets(yBM,3,1) * 1 # Value  (High BM)
+aF_BM_N <- portfolioSelectAssets(yBM,3,2) * 1 # Neutral
+aF_BM_L <- portfolioSelectAssets(yBM,3,3) * 1 # Growth (Low BM)
 
-assetsF_MOM_H <- portfolioSelectAssets(yMomentum,3,1) * 1 # Value  (High BM)
-assetsF_MOM_L <- portfolioSelectAssets(yMomentum,3,3) * 1 # Growth (Low BM)
+aF_MOM_W <- portfolioSelectAssets(yMomentum,3,1) * 1 # Value  (Wins)
+aF_MOM_L <- portfolioSelectAssets(yMomentum,3,3) * 1 # Growth (Loss)
 
 ## Carteiras a partir da Interação
+##
+## Conforme French Site
+## http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html
+##
+aF_SH <- aF_Size_S[-1,] * aF_BM_H # Small Value (High BM)
+aF_SN <- aF_Size_S[-1,] * aF_BM_N # Small Neutral
+aF_SL <- aF_Size_S[-1,] * aF_BM_L # Small Growth (Low BM)
+aF_BH <- aF_Size_B[-1,] * aF_BM_H # Big Value (High BM)
+aF_BN <- aF_Size_B[-1,] * aF_BM_N # Big Neutral
+aF_BL <- aF_Size_B[-1,] * aF_BM_L # Big Growth (Low BM)
+aF_SH <- data.frame(lapply(aF_SH, as.logical), row.names=rownames(yBM))
+aF_SH <- apply(aF_SH, 2, function(x) as.logical(x) ) # Small Value (High BM)
+aF_SN <- apply(aF_SN, 2, function(x) as.logical(x) ) # Small Neutral
+aF_SL <- apply(aF_SL, 2, function(x) as.logical(x) ) # Small Growth (Low BM)
+aF_BH <- apply(aF_BH, 2, function(x) as.logical(x) ) # Big Value (High BM)
+aF_BN <- apply(aF_BN, 2, function(x) as.logical(x) ) # Big Neutral
+aF_BL <- apply(aF_BL, 2, function(x) as.logical(x) ) # Big Growth (Low BM)
+aF_SWI <- (aF_Size_S * aF_MOM_W)[-1,] # Small Win
+aF_SLO <- (aF_Size_S * aF_MOM_L)[-1,] # Small Los
+aF_BWI <- (aF_Size_B * aF_MOM_W)[-1,] # Big Win
+aF_BLO <- (aF_Size_B * aF_MOM_L)[-1,] # Big Los
+aF_SWI <- apply(aF_SWI, 2, function(x) as.logical(x) )
+aF_SLO <- apply(aF_SLO, 2, function(x) as.logical(x) )
+aF_BWI <- apply(aF_BWI, 2, function(x) as.logical(x) )
+aF_BLO <- apply(aF_BLO, 2, function(x) as.logical(x) )
 
-assetsF_SH <- assetsF_Size_S[-1,] * assetsF_BM_H # Small Value (High BM)
-assetsF_SN <- assetsF_Size_S[-1,] * assetsF_BM_N # Small Neutral
-assetsF_SL <- assetsF_Size_S[-1,] * assetsF_BM_L # Small Growth (Low BM)
-assetsF_BH <- assetsF_Size_B[-1,] * assetsF_BM_H # Big Value (High BM)
-assetsF_BN <- assetsF_Size_B[-1,] * assetsF_BM_N # Big Neutral
-assetsF_BL <- assetsF_Size_B[-1,] * assetsF_BM_L # Big Growth (Low BM)
-assetsF_SH <- data.frame(lapply(assetsF_SH, as.logical), row.names=rownames(yBM))
-assetsF_SH <- apply(assetsF_SH, 2, function(x) as.logical(x) ) # Small Value (High BM)
-assetsF_SN <- apply(assetsF_SN, 2, function(x) as.logical(x) ) # Small Neutral
-assetsF_SL <- apply(assetsF_SL, 2, function(x) as.logical(x) ) # Small Growth (Low BM)
-assetsF_BH <- apply(assetsF_BH, 2, function(x) as.logical(x) ) # Big Value (High BM)
-assetsF_BN <- apply(assetsF_BN, 2, function(x) as.logical(x) ) # Big Neutral
-assetsF_BL <- apply(assetsF_BL, 2, function(x) as.logical(x) ) # Big Growth (Low BM)
-assetsF_SWI <- (assetsF_Size_S * assetsF_MOM_H)[-1,] # Small Win
-assetsF_SLO <- (assetsF_Size_S * assetsF_MOM_L)[-1,] # Small Los
-assetsF_BWI <- (assetsF_Size_B * assetsF_MOM_H)[-1,] # Big Win
-assetsF_BLO <- (assetsF_Size_B * assetsF_MOM_L)[-1,] # Big Los
-assetsF_SWI <- apply(assetsF_SWI, 2, function(x) as.logical(x) )
-assetsF_SLO <- apply(assetsF_SLO, 2, function(x) as.logical(x) )
-assetsF_BWI <- apply(assetsF_BWI, 2, function(x) as.logical(x) )
-assetsF_BLO <- apply(assetsF_BLO, 2, function(x) as.logical(x) )
-
-rownames(assetsF_SH) <- rownames(yBM)
-rownames(assetsF_SN) <- rownames(yBM)
-rownames(assetsF_SL) <- rownames(yBM)
-rownames(assetsF_BH) <- rownames(yBM)
-rownames(assetsF_BN) <- rownames(yBM)
-rownames(assetsF_BL) <- rownames(yBM)
-rownames(assetsF_SWI) <- rownames(yBM)
-rownames(assetsF_SLO) <- rownames(yBM)
-rownames(assetsF_BWI) <- rownames(yBM)
-rownames(assetsF_BLO) <- rownames(yBM)
+rownames(aF_SH) <- rownames(yBM)
+rownames(aF_SN) <- rownames(yBM)
+rownames(aF_SL) <- rownames(yBM)
+rownames(aF_BH) <- rownames(yBM)
+rownames(aF_BN) <- rownames(yBM)
+rownames(aF_BL) <- rownames(yBM)
+rownames(aF_SWI) <- rownames(yBM)
+rownames(aF_SLO) <- rownames(yBM)
+rownames(aF_BWI) <- rownames(yBM)
+rownames(aF_BLO) <- rownames(yBM)
 
 ## Retornos
 portF_SH <- portfolioSerie(mReturns, mMVclass, assetsF_SH)
@@ -475,7 +478,7 @@ portF_SWI <- portfolioSerie(mReturns, mMVclass, assetsF_SWI)
 portF_SLO <- portfolioSerie(mReturns, mMVclass, assetsF_SLO)
 portF_BWI <- portfolioSerie(mReturns, mMVclass, assetsF_BWI)
 portF_BLO <- portfolioSerie(mReturns, mMVclass, assetsF_BLO)
-rm(list=ls(pattern = "assetsF_"))
+rm(list=ls(pattern = "aF_"))
 
 ## Fatores de Risco # ----------------------------------------------------------
 
@@ -722,10 +725,9 @@ reportAvarege("Long", Sentiment)
 reportRegSent(Sentiment, 1)   ## Sentiment and Returns
 reportRegCAPM(Sentiment, 1)   ## CAPM
 reportReg3F  (Sentiment,   1) ## FF1993
-
+plot(as.xts(Sentiment))
 # load(paste(getwd(),"/Data/", "20141022_FINAL.RData", sep=""))
 # save.image(paste(getwd(),"/Data/", "20141022_FINAL.RData", sep=""))
-fator_momento <- summary(dynlm(ls_MOM$LONG   - ls_MOM$SHORT   ~ L(Sentiment, 1)+MKT+SMB+HML+UMD))
 
 # save.image(paste(getwd(),"/Data/", format(Sys.Date(), "%Y%m%d"),
 #                   "_", format(Sys.time(),"%H%M%S"), ".RData", sep=""))

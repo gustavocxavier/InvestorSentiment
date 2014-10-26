@@ -1519,3 +1519,59 @@ reportReg3F <- function(SentimentIndex, Lag) {
     cat("\n")
     return(Out)
 }
+
+reportReg4F <- function(SentimentIndex, Lag) {
+    tmp  <- ts(1:(length(LS$LONG)+1), start=c(PERIOD.n+1, 6), frequency=12)
+    S    <- ts.intersect(SentimentIndex, tmp, dframe=TRUE)$SentimentIndex ; rm(tmp)
+    
+    Out <- rbind(TAM   = summary(dynlm(ls_TAM$LONG   ~ L(S, Lag) + MKT  + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                 LIQ   = summary(dynlm(ls_LIQ$LONG   ~ L(S, Lag) + MKT  + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                 VOL   = summary(dynlm(ls_VOL$LONG   ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                 BM    = summary(dynlm(ls_BM$LONG    ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                 MOM   = summary(dynlm(ls_MOM$LONG   ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                 EBTDA = summary(dynlm(ls_EBTDA$LONG ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                 ENDIV = summary(dynlm(ls_ENDIV$LONG ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                 LP    = summary(dynlm(ls_LP$LONG    ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                 ROA   = summary(dynlm(ls_ROA$LONG   ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                 TODAS = summary(dynlm(LS$LONG       ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)])
+    Out <- cbind(Out, rbind(TAM   = summary(dynlm(ls_TAM$SHORT   ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            LIQ   = summary(dynlm(ls_LIQ$SHORT   ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            VOL   = summary(dynlm(ls_VOL$SHORT   ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            BM    = summary(dynlm(ls_BM$SHORT    ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            MOM   = summary(dynlm(ls_MOM$SHORT   ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            EBTA  = summary(dynlm(ls_EBTDA$SHORT ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            ENDIV = summary(dynlm(ls_ENDIV$SHORT ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            LP    = summary(dynlm(ls_LP$SHORT    ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            ROA   = summary(dynlm(ls_ROA$SHORT   ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            TODAS = summary(dynlm(LS$SHORT       ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)]))
+    Out <- cbind(Out, rbind(TAM   = summary(dynlm(ls_TAM$LONG   - ls_TAM$SHORT   ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            LIQ   = summary(dynlm(ls_LIQ$LONG   - ls_LIQ$SHORT   ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            VOL   = summary(dynlm(ls_VOL$LONG   - ls_VOL$SHORT   ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            BM    = summary(dynlm(ls_BM$LONG    - ls_BM$SHORT    ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            MOM   = summary(dynlm(ls_MOM$LONG   - ls_MOM$SHORT   ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            EBTA  = summary(dynlm(ls_EBTDA$LONG - ls_EBTDA$SHORT ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            ENDIV = summary(dynlm(ls_ENDIV$LONG - ls_ENDIV$SHORT ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            LP    = summary(dynlm(ls_LP$LONG    - ls_LP$SHORT    ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            ROA   = summary(dynlm(ls_ROA$LONG   - ls_ROA$SHORT   ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)],
+                            TODAS = summary(dynlm(LS$LONG       - LS$SHORT       ~ L(S, Lag) + MKT + SMB + HML + UMD))$coefficients[2,c(1,3,4)]))
+    colnames(Out) <- c("        LONG", "t stat", "p value",
+                       "       SHORT", "t stat", "p value",
+                       "   LONGSHORT", "t stat", "p value")
+    Out <- as.data.frame(round(Out,3))
+    barplot(abs(Out[,8]), main = 'Sentiment and Return (Momento 4 Factors adjusted)',
+            ylab= "Alpha t-stat",
+            xlab="Long Short Portfolios (t-stat > 1.7)",
+            axisnames=T, names.arg = rownames(Out))
+    abline(h = 1.7, lty = 3)
+    print(rbind(Qtd.Sign.=c("      0.1"=sum(Out[1:9,3] <= 0.01),
+                            "  0.05"=sum(Out[1:9,3] <= 0.005),
+                            "   0.01"=sum(Out[1:9,3] <= 0.001),
+                            "          0.1"=sum(Out[1:9,6] <= 0.1),
+                            "  0.05"=sum(Out[1:9,6] <= 0.05),
+                            "   0.01"=sum(Out[1:9,6] <= 0.01),
+                            "      0.1 "=sum(Out[1:9,9] <= 0.1),
+                            "  0.05"=sum(Out[1:9,9] <= 0.05),
+                            "   0.01"=sum(Out[1:9,9] <= 0.01))), quote=FALSE)
+    cat("\n")
+    return(Out)
+}

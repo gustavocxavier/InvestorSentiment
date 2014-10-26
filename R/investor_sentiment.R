@@ -8,7 +8,7 @@
 
 ## CONTENTS ## #################################################################
 ## 1. SETTINGS
-## 2. GET DATA AND CLEAN
+## 2. LOAD DATA AND CLEAN
 ## 3. INVESTOR SENTIMENT INDEX
 ## 4. PRICING MODELS
 ## 5. CONSTRUCT PORTFOLIOS
@@ -721,6 +721,7 @@ reportAvarege("Long", Sentiment)
 
 #== 6.2 Predictive Regressions # ===============================================
 ## model1, modelCAPM, model3F, model4F e model5F
+##
 
 reportRegSent(Sentiment, 1)   ## Sentiment and Returns
 reportRegCAPM(Sentiment, 1)   ## CAPM

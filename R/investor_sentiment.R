@@ -30,8 +30,10 @@
 ##                                retorno de jul/(n-1):mai/(n  ) (11 meses)
 ##
 
+# load(paste(getwd(),"/Data/", "20141022_FINAL.RData", sep=""))
+
 ## Definir Parametros / Set Parameters -----------------------------------------
-setwd("C:/Dropbox/investorSentiment") # Pasta de Trabalho / Working Directory
+setwd("C:/OneDrive/investorSentiment") # Pasta de Trabalho / Working Directory
 
 PERIOD.n <- 1999 # Ano Inicial
 PERIOD.N <- 2014 # Ano Final
@@ -468,16 +470,16 @@ rownames(aF_BWI) <- rownames(yBM)
 rownames(aF_BLO) <- rownames(yBM)
 
 ## Retornos
-portF_SH <- portfolioSerie(mReturns, mMVclass, assetsF_SH)
-portF_SN <- portfolioSerie(mReturns, mMVclass, assetsF_SN)
-portF_SL <- portfolioSerie(mReturns, mMVclass, assetsF_SL)
-portF_BH <- portfolioSerie(mReturns, mMVclass, assetsF_BH)
-portF_BN <- portfolioSerie(mReturns, mMVclass, assetsF_BN)
-portF_BL <- portfolioSerie(mReturns, mMVclass, assetsF_BL)
-portF_SWI <- portfolioSerie(mReturns, mMVclass, assetsF_SWI)
-portF_SLO <- portfolioSerie(mReturns, mMVclass, assetsF_SLO)
-portF_BWI <- portfolioSerie(mReturns, mMVclass, assetsF_BWI)
-portF_BLO <- portfolioSerie(mReturns, mMVclass, assetsF_BLO)
+portF_SH <- portfolioSerie(mReturns, mMVclass, aF_SH)
+portF_SN <- portfolioSerie(mReturns, mMVclass, aF_SN)
+portF_SL <- portfolioSerie(mReturns, mMVclass, aF_SL)
+portF_BH <- portfolioSerie(mReturns, mMVclass, aF_BH)
+portF_BN <- portfolioSerie(mReturns, mMVclass, aF_BN)
+portF_BL <- portfolioSerie(mReturns, mMVclass, aF_BL)
+portF_SWI <- portfolioSerie(mReturns, mMVclass, aF_SWI)
+portF_SLO <- portfolioSerie(mReturns, mMVclass, aF_SLO)
+portF_BWI <- portfolioSerie(mReturns, mMVclass, aF_BWI)
+portF_BLO <- portfolioSerie(mReturns, mMVclass, aF_BLO)
 rm(list=ls(pattern = "aF_"))
 
 ## Fatores de Risco # ----------------------------------------------------------
@@ -512,12 +514,12 @@ UMD <- ts(UMD, start=c(PERIOD.n,7), frequency=12)
 # summary(lm(portF_BN$rVW-Rf ~ MKT + SMB + HML))
 # summary(lm(portF_BL$rVW-Rf ~ MKT + SMB + HML))
 # 
-NW(lm(portF_SH$rVW-Rf ~ MKT + SMB + HML + UMD))
-NW(lm(portF_SN$rVW-Rf ~ MKT + SMB + HML + UMD))
-NW(lm(portF_SL$rVW-Rf ~ MKT + SMB + HML + UMD))
-NW(lm(portF_BH$rVW-Rf ~ MKT + SMB + HML + UMD))
-NW(lm(portF_BN$rVW-Rf ~ MKT + SMB + HML + UMD))
-NW(lm(portF_BL$rVW-Rf ~ MKT + SMB + HML + UMD))
+# NW(lm(portF_SH$rVW-Rf ~ MKT + SMB + HML + UMD))
+# NW(lm(portF_SN$rVW-Rf ~ MKT + SMB + HML + UMD))
+# NW(lm(portF_SL$rVW-Rf ~ MKT + SMB + HML + UMD))
+# NW(lm(portF_BH$rVW-Rf ~ MKT + SMB + HML + UMD))
+# NW(lm(portF_BN$rVW-Rf ~ MKT + SMB + HML + UMD))
+# NW(lm(portF_BL$rVW-Rf ~ MKT + SMB + HML + UMD))
 
 ## 5. CONSTRUCT PORTFOLIOS ## ##################################################
 ## 5.1 BW  Portfolios
@@ -708,30 +710,31 @@ reportAvarege("Short", Sentiment)
 ## LONG (Espera-se que o sentimento nao tenha efeito)
 reportAvarege("Long", Sentiment)
 
-# computeAvarageReturns(ls_TAM, Sent, 1)
-# computeAvarageReturns(ls_LIQ, Sent, 1)
-# computeAvarageReturns(ls_VOL, Sent, 1)
-# computeAvarageReturns(ls_BM , Sent, 1)
-# computeAvarageReturns(ls_MOM, Sent, 1)
-# computeAvarageReturns(ls_EBTDA, Sent, 1)
-# computeAvarageReturns(ls_ENDIV, Sent, 1)
-# computeAvarageReturns(ls_LP , Sent, 1)
-# computeAvarageReturns(ls_ROA, Sent, 1)
-# computeAvarageReturns(LS, Sent, 1)
+# computeAvarageReturns(ls_TAM, Sentiment, 1)
+# computeAvarageReturns(ls_LIQ, Sentiment, 1)
+# computeAvarageReturns(ls_VOL, Sentiment, 1)
+# computeAvarageReturns(ls_BM , Sentiment, 1)
+# computeAvarageReturns(ls_MOM, Sentiment, 1)
+# computeAvarageReturns(ls_EBTDA, Sentiment, 1)
+# computeAvarageReturns(ls_ENDIV, Sentiment, 1)
+# computeAvarageReturns(ls_LP , Sentiment, 1)
+# computeAvarageReturns(ls_ROA, Sentiment, 1)
+# computeAvarageReturns(LS, Sentiment, 1)
 
 #== 6.2 Predictive Regressions # ===============================================
 ## model1, modelCAPM, model3F, model4F e model5F
 ##
 
-reportRegSent(Sentiment, 1)   ## Sentiment and Returns
-reportRegCAPM(Sentiment, 1)   ## CAPM
-reportReg3F  (Sentiment,   1) ## FF1993
-plot(as.xts(Sentiment))
-# load(paste(getwd(),"/Data/", "20141022_FINAL.RData", sep=""))
+reportRegSent(Sentiment, 1) ## Sentiment and Returns
+reportRegCAPM(Sentiment, 1) ## CAPM
+reportReg3F  (Sentiment, 1) ## FF1993
+reportReg4F  (Sentiment, 1) ## MOMENTO
+
+reportRegDummy("Long", Sentiment, 1)
+reportRegDummy("Short", Sentiment, 1)
+reportRegDummy("LongShort", Sentiment, 1)
+
+
 # save.image(paste(getwd(),"/Data/", "20141022_FINAL.RData", sep=""))
-
 # save.image(paste(getwd(),"/Data/", format(Sys.Date(), "%Y%m%d"),
-#                   "_", format(Sys.time(),"%H%M%S"), ".RData", sep=""))
-
-# save.image(paste(getwd(),"/Data/", format(Sys.Date(), "%Y%m%d"),
-#                  "_", "QN", ".RData", sep=""))
+#                  "_", format(Sys.time(),"%H%M%S"), ".RData", sep=""))

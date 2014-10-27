@@ -250,26 +250,15 @@ prx_S <- as.data.frame(as.xts(prx_S)[PERIOD.PRX])
 
 ## Calcular TURN
 prx_TURNq <- calcularTURNqtd ("Input/mNegociabilidade.csv",
-                             "Input/mQN.csv",
+                              "Input/mQN.csv",
                               #"Input/mQT.csv",
                               "Input/mQTOutStanding.csv",
                               PERIOD.PRX, lagDetrend=4, Liq=0.01)
-# plot(as.xts( ts(prx_TURNq$dTURN, start=c(PERIOD.n,1), frequency=12) ))
 
 prx_TURNv <- calcularTURN ("Input/mNegociabilidade.csv",
-                          "Input/mVolFinanNoMes.csv",
-                          "Input/mMarketValue.csv",
-                          PERIOD.PRX, lagDetrend=4, Liq=0.01)
-# plot(as.xts( ts(prx_TURNv$TURN, start=c(PERIOD.n,1), frequency=12) ))
-# plot(as.xts( ts(prx_TURNv$dTURN, start=c(PERIOD.n,1), frequency=12) ))
-
-
-# plot(as.xts( ts(prx_NIPO$CVM, start=c(PERIOD.n,1), frequency=12)))
-# plot(as.xts( ts(prx_S$Issues, start=c(PERIOD.n,1), frequency=12) ))
-
-# plot(as.xts( ts(prx_TURNq$dTURN, start=c(PERIOD.n,1), frequency=12) ))
-# plot(as.xts( ts(prx_TURNq$dQN, start=c(PERIOD.n,1), frequency=12) ))
-
+                           "Input/mVolFinanNoMes.csv",
+                           "Input/mMarketValue.csv",
+                           PERIOD.PRX, lagDetrend=4, Liq=0.01)
 
 ## Calcular PVOL
 prx_PVOL <- calcularPVOL()
@@ -278,7 +267,8 @@ prx_PVOL <- calcularPVOL()
 
 LAG <- 12
 mProxies <- ts.intersect(
-    NIPO  = ts(c(prx_NIPO$CVM,rep(0,6)) ,  start=c(PERIOD.n,1), frequency=(12)),
+    NIPO  = ts(prx_NIPO$CVM ,  start=c(PERIOD.n,1), frequency=(12)),
+    # NIPO  = ts(SMA(prx_NIPO$CVM,12) ,  start=c(PERIOD.n,1), frequency=(12)),
     S     = ts(prx_S$Issues ,  start=c(PERIOD.n,1), frequency=(12)),
     # TURNV = ts(prx_TURNv$TURN, start=c(PERIOD.n,1), frequency=(12)),
     # dTURNV = ts(prx_TURNv$dTURN, start=c(PERIOD.n,1), frequency=(12)),
@@ -286,6 +276,7 @@ mProxies <- ts.intersect(
     # QN   = ts(prx_TURNq$dQN,   start=c(PERIOD.n,1), frequency=(12)),
     PVOL = ts(prx_PVOL$PVOL,  start=c(PERIOD.n,1), frequency=(12)),
     NIPOlag = lag(ts(prx_NIPO$CVM,   start=c(PERIOD.n,1), frequency=(12)), -LAG),
+    # NIPOlag = lag(ts(SMA(prx_NIPO$CVM,12),   start=c(PERIOD.n,1), frequency=(12)), -LAG),
     Slag    = lag(ts(prx_S$Issues,   start=c(PERIOD.n,1), frequency=(12)), -LAG),
     # TURNVlag = lag(ts(prx_TURNv$TURN, start=c(PERIOD.n,1), frequency=(12)), -LAG),
     # dTURNVlag = lag(ts(prx_TURNv$dTURN, start=c(PERIOD.n,1), frequency=(12)), -LAG),
@@ -294,17 +285,18 @@ mProxies <- ts.intersect(
     PVOLlag = lag(ts(prx_PVOL$PVOL,  start=c(PERIOD.n,1), frequency=(12)), -LAG),
     dframe = T)
 row.names(mProxies) <- as.character(as.Date(index(as.xts(mProxies[,1]))))
+# mProxies <- mProxies[complete.cases(mProxies),]
+
 ## Correlations
-#   as.dist(round(cor(mProxies, use="everything"),2)) # c/ Na
-as.dist(round(cor(mProxies, use="na.or.complete"),2)) # s/ NA
+as.dist(round(cor(mProxies, use="na.or.complete"),2))
 
 ## 3.2 First Step # ============================================================
 # Estimating first component of all proxies and their lags and choose the best
-# mProxies <- mProxies[!is.na(mProxies$Slag),]
 PCAstep1 <- prcomp(mProxies, scale=T, center = TRUE)
 
-round(cor(PCAstep1$x[,"PC1"],mProxies),2) * (-1)     # The correlations
+round(cor(PCAstep1$x[,"PC1"],mProxies),2) #* (-1)     # The correlations
 mBestProxies <- chooseLAG(mProxies)                  # Choosing LAGs...
+# mBestProxies <- mProxies                  # Choosing LAGs...
 colnames(mBestProxies)                               # Best proxies
 round(cor(PCAstep1$x[,"PC1"],mBestProxies),2) * (-1) # Correlation with PC1
 as.dist(round(cor(mBestProxies),2))                  # Correlations between them
@@ -328,17 +320,15 @@ PCAstep2$rotation[,"PC1"]
 
 ## PIB (% Change)
 ## https://www.quandl.com/BCB/4380-GDP-monthly-current-prices-R-million
-data_inicial <- as.Date(paste(PERIOD.n,"-12-31", sep=""))
+data_inicial <- as.Date(row.names(mBestProxies)[1])
 PIB <- Quandl("BCB/4380",
               trim_start=data_inicial, trim_end="2014-06-30",
               transformation="rdiff",
               sort="asc")
 
-
-
 ## OECD Dummy (Recession)
 ## https://www.quandl.com/FRED/BRARECM
-data_inicial <- as.Date(paste(PERIOD.n+1,"-01-01", sep=""))
+data_inicial <- as.Date(row.names(mBestProxies)[1])
 RECESS <- Quandl("FRED/BRARECM",
                  trim_start=data_inicial, trim_end="2014-06-30", sort="asc")
 
@@ -366,14 +356,27 @@ summary(PCAstep3)
 screeplot(PCAstep3, type="line", main="Scree Plot Sentimento Ortogonalizado")
 
 PCAstep3$rotation[,"PC1"] # Equacao do Indice de Sent. Ortogonalizado
-
-Sentiment <- ts(PCAstep3$x[,"PC1"], start=c(2000,1), frequency=12)
-SentNO <- ts(PCAstep2$x[,"PC1"], start=c(2000,1), frequency=12)
+tmp <- c(year(row.names(mProxiesOrtog)[1]), month(row.names(mProxiesOrtog)[1]))
+Sentiment <- lag(ts(PCAstep3$x[,"PC1"], start=tmp, frequency=12), 4)
+SentNO    <- lag(ts(PCAstep2$x[,"PC1"], start=tmp, frequency=12), 4)
 
 ## Plotar Sentimento e SentimentoNO (Não Ortogonalizado)
 plot(SentNO, col="dark red", lty="dashed")
 lines(Sentiment, col="blue")
 abline(h = 0, lty = 3)
+
+plot(as.xts(Sentiment))
+
+
+Sentiment <- ts(PCAstep3$x[,"PC1"], start=tmp, frequency=12)
+Sentiment <- lag(Sentiment,6)
+reportAvarege("LongShort", Sentiment)
+reportAvarege("Short", Sentiment)
+reportAvarege("Long", Sentiment)
+reportRegSent(Sentiment, 1) ## Sentiment and Returns
+reportRegCAPM(Sentiment, 1) ## CAPM
+reportReg3F  (Sentiment, 1) ## FF1993
+reportReg4F  (Sentiment, 1) ## MOMENTO
 
 
 ## 4. PRICING MODELS ## #######################################################

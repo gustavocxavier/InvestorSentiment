@@ -356,6 +356,8 @@ summary(PCAstep3)
 screeplot(PCAstep3, type="line", main="Scree Plot Sentimento Ortogonalizado")
 
 PCAstep3$rotation[,"PC1"] # Equacao do Indice de Sent. Ortogonalizado
+
+# Salvando Variavel
 tmp <- c(year(row.names(mProxiesOrtog)[1]), month(row.names(mProxiesOrtog)[1]))
 Sentiment <- lag(ts(PCAstep3$x[,"PC1"], start=tmp, frequency=12), 4)
 SentNO    <- lag(ts(PCAstep2$x[,"PC1"], start=tmp, frequency=12), 4)
@@ -733,11 +735,13 @@ reportRegCAPM(Sentiment, 1) ## CAPM
 reportReg3F  (Sentiment, 1) ## FF1993
 reportReg4F  (Sentiment, 1) ## MOMENTO
 
+#== 6.2.3 Extremos, dummys # ===================================================
+
 reportRegDummy("Long", Sentiment, 1)
 reportRegDummy("Short", Sentiment, 1)
 reportRegDummy("LongShort", Sentiment, 1)
 
 
-# save.image(paste(getwd(),"/Data/", "20141022_FINAL.RData", sep=""))
+# save.image(paste(getwd(),"/Data/", "20141027_FINAL.RData", sep=""))
 # save.image(paste(getwd(),"/Data/", format(Sys.Date(), "%Y%m%d"),
-#                  "_", format(Sys.time(),"%H%M%S"), ".RData", sep=""))
+#               "_", format(Sys.time(),"%H%M%S"), ".RData", sep=""))

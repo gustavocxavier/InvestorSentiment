@@ -621,16 +621,33 @@ calcularNIPO <- function(Dados) {
     EMPRESA  <- substr(Dados$empresa,1,12) # Gerar STRING de comparacao
     REPETIDO <- duplicated(EMPRESA)        # Vetor de empresas que repetiram
     
+    require(lubridate)
+    
     ## Verificando Quantidade de IPO por ano 
     ano       <- substr(Dados$data[!REPETIDO],1,4)
     mes       <- substr(Dados$data[!REPETIDO],6,7)
     Out      <- data.frame(table(ano, mes))
-    rownames(Out) <- as.Date(paste(Out$ano, Out$mes, "01", sep="-"))
+    rownames(Out) <- Date <- as.Date(paste(Out$ano, Out$mes, "01", sep="-"))
     Out$ano  <- as.numeric(Out$ano)
     Out$mes  <- as.numeric(Out$mes)
     Out      <- Out[order(Out$ano,Out$mes),]
     Out$ano <- NULL ; Out$mes <- NULL
     colnames(Out) <- "CVM"
+    
+    ## Verificar se tem dados de 01/01/n a 01/06/N e adicionar linhas com
+    ## valores zerados para os meses faltantes
+    firstMonth <- as.Date(paste(PERIOD.n, "-01-01", sep=""))
+    if ( head(Date,1) < firstMonth ) {
+        tmp <- seq.Date(firstMonth, head(Date,1)-months(1), by="month")
+        Out <- rbind(data.frame(CVM=rep(0,length(tmp)), row.names=tmp), Out)
+    }
+    lastMonth <- as.Date(paste(PERIOD.N, "-06-01", sep=""))
+    if ( tail(Date,1) < lastMonth ) {
+        tmp <- seq.Date(tail(Date,1)+months(1), lastMonth, by="month")
+        Out <- rbind(Out, data.frame(CVM=rep(0,length(tmp)), row.names=tmp))
+    }
+    ## Filtro de data caso a matriz seja maior do que a amostra desejada
+    Out <- as.data.frame(as.xts(Out)[PERIOD.PRX])
     
     return(Out)
 }
@@ -813,7 +830,7 @@ calcularPVOL <- function () {
     Out$MBlv <- MBlv
     Out$PVOL <- log(MBhv/MBlv)    
     Out <- Out[sort(rep(1:nrow(Out),3)),]
-    rownames(Out) <- rownames(prx_TURN)
+    rownames(Out) <- rownames(prx_S)
     rm(list=c("MBlv","MBhv"))
     return(Out)
 }
@@ -1199,26 +1216,26 @@ computeAvarageReturns <- function (LongShortPortfolio, SentimentIndex, Lag) {
                                     t.test(df$LS.LONG[(df$dL==1)], alternative="greater")$statistic,
                                     t.test(df$LS.LONG[(df$dL==1)], alternative="greater")$p.value,
                                     mean(df$LS.LONG[(df$dH==1)] - df$LS.LONG[(df$dL==1)])*100,
-                                    t.test((df$LS.LONG[(df$dH==1)] - df$LS.LONG[(df$dL==1)]), alternative="less")$statistic,
-                                    t.test((df$LS.LONG[(df$dH==1)] - df$LS.LONG[(df$dL==1)]), alternative="less")$p.value),
+                                    t.test((df$LS.LONG[(df$dH==1)] - df$LS.LONG[(df$dL==1)]), alternative="two.sided")$statistic,
+                                    t.test((df$LS.LONG[(df$dH==1)] - df$LS.LONG[(df$dL==1)]), alternative="two.sided")$p.value),
                            SHORT= c(mean(df$LS.SHORT[(df$dH==1)])*100,
                                     t.test(df$LS.SHORT[(df$dH==1)], alternative="less")$statistic,
                                     t.test(df$LS.SHORT[(df$dH==1)], alternative="less")$p.value,
                                     mean(df$LS.SHORT[(df$dL==1)])*100,
-                                    t.test(df$LS.SHORT[(df$dL==1)], alternative="less")$statistic,
-                                    t.test(df$LS.SHORT[(df$dL==1)], alternative="less")$p.value,
+                                    t.test(df$LS.SHORT[(df$dL==1)], alternative="two.sided")$statistic,
+                                    t.test(df$LS.SHORT[(df$dL==1)], alternative="two.sided")$p.value,
                                     mean((df$LS.SHORT[(df$dH==1)] - df$LS.SHORT[(df$dL==1)]))*100,
                                     t.test((df$LS.SHORT[(df$dH==1)] - df$LS.SHORT[(df$dL==1)]), alternative="less")$statistic,
                                     t.test((df$LS.SHORT[(df$dH==1)] - df$LS.SHORT[(df$dL==1)]), alternative="less")$p.value),
                            LS   = c(mean(df$LongShort[(df$dH==1)])*100,
-                                    t.test(df$LongShort[(df$dH==1)], alternative="greater")$statistic,
-                                    t.test(df$LongShort[(df$dH==1)], alternative="greater")$p.value,
+                                    t.test(df$LongShort[(df$dH==1)], alternative="two.sided")$statistic,
+                                    t.test(df$LongShort[(df$dH==1)], alternative="two.sided")$p.value,
                                     mean(df$LongShort[(df$dL==1)])*100,
-                                    t.test(df$LongShort[(df$dL==1)], alternative="greater")$statistic,
-                                    t.test(df$LongShort[(df$dL==1)], alternative="greater")$p.value,
+                                    t.test(df$LongShort[(df$dL==1)], alternative="two.sided")$statistic,
+                                    t.test(df$LongShort[(df$dL==1)], alternative="two.sided")$p.value,
                                     mean((df$LongShort[(df$dH==1)] - df$LongShort[(df$dL==1)]))*100,
-                                    t.test((df$LongShort[(df$dH==1)] - df$LongShort[(df$dL==1)]), alternative="greater")$statistic,
-                                    t.test((df$LongShort[(df$dH==1)] - df$LongShort[(df$dL==1)]), alternative="greater")$p.value),
+                                    t.test((df$LongShort[(df$dH==1)] - df$LongShort[(df$dL==1)]), alternative="two.sided")$statistic,
+                                    t.test((df$LongShort[(df$dH==1)] - df$LongShort[(df$dL==1)]), alternative="two.sided")$p.value),
                            row.names = c("Avarage Return High",
                                          "t-stat  (High)",
                                          "p-value (High)",
@@ -1231,7 +1248,7 @@ computeAvarageReturns <- function (LongShortPortfolio, SentimentIndex, Lag) {
 }
 
 allQuintiles <- function (Criterion, Return, Value) {
-    
+
     ## ______________________________________________________________
     ##
     ## Imprime Média e Retorna a Série de todos os Portfolios
@@ -1305,7 +1322,7 @@ reportAvarege <- function (Position, SentimentIndex, Lag=1) {
                   sum(Out[1:9,7] <= 0),"(Apesar de todas positivas (Low > High), em SYY nenhuma foi siginificante)\n"))
         cat(paste("Spread retorno H-L na combinação (SYY 39, n siginif.):", Out[10,7] ,
                   "( p-value", Out[10,9],")\n\n"))        
-} else if ( Position == "Short" ) {
+    } else if ( Position == "Short" ) {
         Out <- rbind(TAM   = t(computeAvarageReturns(ls_TAM, S, Lag))[2,1:9],
                      LIQ   = t(computeAvarageReturns(ls_LIQ, S, Lag))[2,1:9],
                      VOL   = t(computeAvarageReturns(ls_VOL, S, Lag))[2,1:9],
@@ -1575,3 +1592,124 @@ reportReg4F <- function(SentimentIndex, Lag) {
     cat("\n")
     return(Out)
 }
+
+regDummy <- function (LongShortPortfolio, SentimentIndex, Lag) {
+    tmp  <- ts(1:(length(LS$LONG)), start=c(PERIOD.n+1, 6), frequency=12)
+    Sent <- ts.intersect(SentimentIndex, tmp, dframe=TRUE)$SentimentIndex ; rm(tmp)
+    # dH <- ts(as.numeric(Sent >= median(Sent)), start=start(Sent), frequency=frequency(Sent))
+    # dL <- ts(as.numeric(Sent <= median(Sent)), start=start(Sent), frequency=frequency(Sent))
+    dH <- ts(as.numeric(Sent >= quantile(Sent,0.65)), start=start(Sent), frequency=frequency(Sent))
+    dL <- ts(as.numeric(Sent <= quantile(Sent,0.45)), start=start(Sent), frequency=frequency(Sent))    
+    dH <- lag(dH, -Lag) # 1 quando o Sentimento no mes anterior esta acima da mediana
+    dL <- lag(dL, -Lag) # 1 quando o Sentimento no mes anterior esta abixo da mediana
+    # sum(dH) ; sum(dL); cor(dH,dL)
+    LS <- LongShortPortfolio
+    
+    LongShort <- ts(LS$LONG - LS$SHORT, start=start(LS$LONG),
+                    frequency=frequency(LS$LONG))
+    
+    df <- ts.intersect(dH, dL, LS$LONG, LS$SHORT, LongShort, dframe=TRUE)
+    
+    return(round(data.frame(LONG = c(summary(dynlm(df$LS.LONG ~  dH  + dL + MKT + SMB + HML))$coefficients["dH","Estimate"],
+                                     summary(dynlm(df$LS.LONG ~  dH  + dL + MKT + SMB + HML))$coefficients["dH",3],
+                                     summary(dynlm(df$LS.LONG ~  dH  + dL + MKT + SMB + HML))$coefficients["dH",4],
+                                     summary(dynlm(df$LS.LONG ~  dH  + dL + MKT + SMB + HML))$coefficients["dL","Estimate"],
+                                     summary(dynlm(df$LS.LONG ~  dH  + dL + MKT + SMB + HML))$coefficients["dL",3],
+                                     summary(dynlm(df$LS.LONG ~  dH  + dL + MKT + SMB + HML))$coefficients["dL",4],
+                                     NA,
+                                     NA,
+                                     NA),
+                            SHORT= c(summary(dynlm(df$LS.SHORT ~  dH  + dL + MKT + SMB + HML))$coefficients["dH","Estimate"],
+                                     summary(dynlm(df$LS.SHORT ~  dH  + dL + MKT + SMB + HML))$coefficients["dH",3],
+                                     summary(dynlm(df$LS.SHORT ~  dH  + dL + MKT + SMB + HML))$coefficients["dH",4],
+                                     summary(dynlm(df$LS.SHORT ~  dH  + dL + MKT + SMB + HML))$coefficients["dL","Estimate"],
+                                     summary(dynlm(df$LS.SHORT ~  dH  + dL + MKT + SMB + HML))$coefficients["dL",3],
+                                     summary(dynlm(df$LS.SHORT ~  dH  + dL + MKT + SMB + HML))$coefficients["dL",4],
+                                     NA,
+                                     NA,
+                                     NA),
+                            LS   = c(summary(dynlm(df$LongShort ~  dH  + dL + MKT + SMB + HML))$coefficients["dH","Estimate"],
+                                     summary(dynlm(df$LongShort ~  dH  + dL + MKT + SMB + HML))$coefficients["dH",3],
+                                     summary(dynlm(df$LongShort ~  dH  + dL + MKT + SMB + HML))$coefficients["dH",4],
+                                     summary(dynlm(df$LongShort ~  dH  + dL + MKT + SMB + HML))$coefficients["dL","Estimate"],
+                                     summary(dynlm(df$LongShort ~  dH  + dL + MKT + SMB + HML))$coefficients["dL",3],
+                                     summary(dynlm(df$LongShort ~  dH  + dL + MKT + SMB + HML))$coefficients["dL",4],
+                                     NA,
+                                     NA,
+                                     NA),
+                            row.names = c("Estimate High",
+                                          "t-stat  (High)",
+                                          "p-value (High)",
+                                          "Estimate Low",
+                                          "t-stat  (Low)",
+                                          "p-value (Low)",
+                                          "Estimate High - Low",
+                                          "t-stat  (H-L)",
+                                          "p-value (H-L)")),3)) ; cat("\n")
+}
+
+reportRegDummy <- function (Position, SentimentIndex, Lag=1) {
+    S <- SentimentIndex
+    if (Position == "Long" ) {
+        Out <- rbind(TAM   = t(regDummy(ls_TAM, S, Lag))[1,1:9],
+                     LIQ   = t(regDummy(ls_LIQ, S, Lag))[1,1:9],
+                     VOL   = t(regDummy(ls_VOL, S, Lag))[1,1:9],
+                     BM    = t(regDummy(ls_BM, S, Lag))[1,1:9],
+                     MOM   = t(regDummy(ls_MOM, S, Lag))[1,1:9],
+                     EBTDA = t(regDummy(ls_EBTDA, S, Lag))[1,1:9],
+                     ENDIV = t(regDummy(ls_ENDIV, S, Lag))[1,1:9],
+                     LP    = t(regDummy(ls_LP, S, Lag))[1,1:9],
+                     ROA   = t(regDummy(ls_ROA, S, Lag))[1,1:9],
+                     TODAS = t(regDummy(LS, S, Lag))[1,1:9])
+#         cat(paste("\nQuantidade H-L < 0:",
+#                   sum(Out[1:9,7] <= 0),"(Apesar de todas positivas (Low > High), em SYY nenhuma foi siginificante)\n"))
+#         cat(paste("Spread retorno H-L na combinação (SYY 39, n siginif.):", Out[10,7] ,
+#                   "( p-value", Out[10,9],")\n\n"))        
+    } else if ( Position == "Short" ) {
+        Out <- rbind(TAM   = t(regDummy(ls_TAM, S, Lag))[2,1:9],
+                     LIQ   = t(regDummy(ls_LIQ, S, Lag))[2,1:9],
+                     VOL   = t(regDummy(ls_VOL, S, Lag))[2,1:9],
+                     BM    = t(regDummy(ls_BM, S, Lag))[2,1:9],
+                     MOM   = t(regDummy(ls_MOM, S, Lag))[2,1:9],
+                     EBTDA = t(regDummy(ls_EBTDA, S, Lag))[2,1:9],
+                     ENDIV = t(regDummy(ls_ENDIV, S, Lag))[2,1:9],
+                     LP    = t(regDummy(ls_LP, S, Lag))[2,1:9],
+                     ROA   = t(regDummy(ls_ROA, S, Lag))[2,1:9],
+                     TODAS = t(regDummy(LS, S, Lag))[2,1:9])
+#         cat(paste("\nQuantidade H-L < 0 (SYY 11 H<L):", sum(Out[1:9,7] <= 0),"(SYY p-value 10 de 11)\n"))
+#         cat(paste("Spread retorno H-L na combinação (SYY -1.32):", Out[10,7] ,
+#                   "( p-value", Out[10,9],")\n\n"))
+    } else if ( Position == "LongShort") {
+        Out <- rbind(TAM   = t(regDummy(ls_TAM, S, Lag))[3,1:9],
+                     LIQ   = t(regDummy(ls_LIQ, S, Lag))[3,1:9],
+                     VOL   = t(regDummy(ls_VOL, S, Lag))[3,1:9],
+                     BM    = t(regDummy(ls_BM, S, Lag))[3,1:9],
+                     MOM   = t(regDummy(ls_MOM, S, Lag))[3,1:9],
+                     EBTDA = t(regDummy(ls_EBTDA, S, Lag))[3,1:9],
+                     ENDIV = t(regDummy(ls_ENDIV, S, Lag))[3,1:9],
+                     LP    = t(regDummy(ls_LP, S, Lag))[3,1:9],
+                     ROA   = t(regDummy(ls_ROA, S, Lag))[3,1:9],
+                     TODAS = t(regDummy(LS, S, Lag))[3,1:9])
+#         cat(paste("\nQuantidade H-L > 0 (SYY 11):", sum(Out[1:9,7] >= 0),"(SYY p-value 8 de 11)\n"))
+#         cat(paste("Spread retorno H-L na combinação (SYY +0.93):", Out[10,7] ,
+#                   "( p-value", Out[10,9],")\n\n"))
+    } else { cat("Escolha as opções Long, Short ou LongShort") }
+    if ( exists("Out") ) {
+        colnames(Out) <- c("         HIGH", "t stat", "p value",
+                           "          LOW", "t stat", "p value",
+                           "     HIGH-LOW", "t stat", "p value")
+        print(rbind(Qtd.Sign.=c("      0.1"=sum(Out[1:9,3] <= 0.1),
+                                "  0.05"=sum(Out[1:9,3] <= 0.05),
+                                "   0.01"=sum(Out[1:9,3] <= 0.01),
+                                "          0.1"=sum(Out[1:9,6] <= 0.1),
+                                "  0.05"=sum(Out[1:9,6] <= 0.05),
+                                "   0.01"=sum(Out[1:9,6] <= 0.01)#,
+                                #"      0.1 "=sum(Out[1:9,9] <= 0.1),
+                                #"  0.05"=sum(Out[1:9,9] <= 0.05),
+                                #"   0.01"=sum(Out[1:9,9] <= 0.01)
+                                )), quote=FALSE)
+        cat("\n")
+        return(Out[,-(7:9)])
+    }
+}
+
